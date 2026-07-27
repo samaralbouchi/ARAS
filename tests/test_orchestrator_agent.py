@@ -205,6 +205,35 @@ def test_collection_errors_are_propagated() -> None:
     ]
 
 
+def test_bot_block_verdict_is_propagated() -> None:
+    """`evidence.blocked` (+ reason/provider) surfaces on `AssessmentResult`."""
+    evidence = _rich_evidence()
+    evidence.blocked = True
+    evidence.blocked_reason = "Cloudflare block/challenge page detected (header:cf-ray)"
+    evidence.blocked_provider = "cloudflare"
+    agent = OrchestratorAgent(evidence_collector=FakeEvidenceCollector(evidence))
+
+    result = agent.assess(URL)
+
+    assert result.blocked is True
+    assert result.blocked_provider == "cloudflare"
+    assert result.blocked_reason == (
+        "Cloudflare block/challenge page detected (header:cf-ray)"
+    )
+
+
+def test_not_blocked_by_default() -> None:
+    """A normal, unblocked evidence snapshot yields `blocked=False` with no reason/provider."""
+    evidence = _rich_evidence()
+    agent = OrchestratorAgent(evidence_collector=FakeEvidenceCollector(evidence))
+
+    result = agent.assess(URL)
+
+    assert result.blocked is False
+    assert result.blocked_reason is None
+    assert result.blocked_provider is None
+
+
 def test_run_accepts_standard_input_contract() -> None:
     """`run({"url": ...})` delegates to `assess` with that URL."""
     evidence = _rich_evidence()
@@ -490,6 +519,18 @@ def _generate_pdf_report(url: str, result: AssessmentResult, output_path: Path) 
     story.append(Spacer(1, 0.3 * cm))
     story.append(summary_table)
 
+    if result.blocked:
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(
+            Paragraph(
+                f"<b><font color='#B00020'>⚠ Bot/WAF block detected "
+                f"({result.blocked_provider}):</font></b> {result.blocked_reason} "
+                f"— scores above likely reflect a block/challenge page, not the "
+                f"site's real content.",
+                styles["Normal"],
+            )
+        )
+
     if result.collection_errors:
         story.append(Paragraph("Collection Errors", heading_style))
         story.append(
@@ -534,6 +575,9 @@ def _print_console_summary(url: str, result: AssessmentResult, report_path: Path
     print(f"  Comprehension:   {result.comprehension['score']}/100")
     print(f"  Interaction:     {result.interaction['score']}/100")
     print(f"  Security:        {result.security['score']}/100")
+    if result.blocked:
+        print()
+        print(f"⚠ Bot/WAF block detected ({result.blocked_provider}): {result.blocked_reason}")
     print()
     print("PDF generated:")
     print(report_path)
@@ -549,6 +593,7 @@ def _print_assessment(label: str, result) -> None:
     print(f"interaction:      {result.interaction['score']}")
     print(f"security:         {result.security['score']}")
     print(f"collection_errors:{result.collection_errors}")
+    print(f"blocked:          {result.blocked} (provider={result.blocked_provider})")
     print()
 
 
@@ -579,6 +624,8 @@ if __name__ == "__main__":
     test_analysis_agents_receive_the_collected_evidence()
     test_overall_score_is_the_average_of_the_four_scores()
     test_collection_errors_are_propagated()
+    test_bot_block_verdict_is_propagated()
+    test_not_blocked_by_default()
     test_run_accepts_standard_input_contract()
     test_real_site_assessment()
     print("All tests passed.")

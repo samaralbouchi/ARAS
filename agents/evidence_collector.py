@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 
 from models.evidence import WebsiteEvidence
 from tools.api_discovery import ApiDiscovery
+from tools.bot_block_detector import BotBlockDetector
 from tools.frontend_analyzer import FrontendAnalyzer
 from tools.html_parser import HtmlParser
 from tools.http_client import HttpClient
@@ -48,6 +49,7 @@ class EvidenceCollectorAgent:
         resource_discovery_cls: type = ResourceDiscovery,
         api_discovery_cls: type = ApiDiscovery,
         frontend_analyzer_cls: type = FrontendAnalyzer,
+        bot_block_detector_cls: type = BotBlockDetector,
     ) -> None:
         """Initialize the agent, optionally overriding its collaborators.
 
@@ -68,6 +70,8 @@ class EvidenceCollectorAgent:
             frontend_analyzer_cls: Class used to analyze frontend
                 JavaScript. Must accept `(javascript_files, http_client)`
                 and expose `.analyze()`.
+            bot_block_detector_cls: Class used to detect bot/WAF block
+                pages. Must accept `(response)` and expose `.detect()`.
         """
         self._http_client = http_client
         self._html_parser_cls = html_parser_cls
@@ -75,6 +79,7 @@ class EvidenceCollectorAgent:
         self._resource_discovery_cls = resource_discovery_cls
         self._api_discovery_cls = api_discovery_cls
         self._frontend_analyzer_cls = frontend_analyzer_cls
+        self._bot_block_detector_cls = bot_block_detector_cls
 
     def run(self, input_data: dict[str, Any]) -> WebsiteEvidence:
         """Collect evidence given the agent's standard input contract.
@@ -201,6 +206,11 @@ class EvidenceCollectorAgent:
         evidence.headers = dict(response.headers)
         evidence.status_code = response.status_code
         evidence.response_time = response.response_time
+
+        block_result = self._bot_block_detector_cls(response).detect()
+        evidence.blocked = block_result.blocked
+        evidence.blocked_reason = block_result.reason
+        evidence.blocked_provider = block_result.provider
 
         parsed = self._html_parser_cls(response.content, base_url=response.final_url).parse()
         evidence.title = parsed.title

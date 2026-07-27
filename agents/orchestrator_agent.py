@@ -134,6 +134,9 @@ class OrchestratorAgent:
                 {"step": error.step, "message": error.message}
                 for error in evidence.errors
             ],
+            blocked=evidence.blocked,
+            blocked_reason=evidence.blocked_reason,
+            blocked_provider=evidence.blocked_provider,
         )
 
     # ------------------------------------------------------------------

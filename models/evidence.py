@@ -76,6 +76,14 @@ class WebsiteEvidence:
         html_length: Length, in characters, of the raw homepage HTML.
         status_code: HTTP status code of the homepage request.
         response_time: Homepage request duration, in seconds.
+        blocked: Whether the homepage response looked like a known
+            bot/WAF block or challenge page rather than genuine site
+            content (see `tools.bot_block_detector.BotBlockDetector`).
+        blocked_reason: Short, human-readable explanation of the block
+            verdict, if `blocked` is True.
+        blocked_provider: Best-guess identity of the blocking system,
+            one of `"akamai"`, `"cloudflare"`, `"generic"`, or `None`
+            if `blocked` is False.
         collected_at: UTC timestamp when collection was performed.
         errors: List of non-fatal errors encountered during collection.
     """
@@ -109,6 +117,9 @@ class WebsiteEvidence:
     html_length: int = 0
     status_code: Optional[int] = None
     response_time: Optional[float] = None
+    blocked: bool = False
+    blocked_reason: Optional[str] = None
+    blocked_provider: Optional[str] = None
     collected_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )

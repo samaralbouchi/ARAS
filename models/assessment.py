@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -38,6 +38,20 @@ class AssessmentResult:
         collection_errors: Non-fatal evidence-collection failures,
             copied from `evidence.errors`, surfaced here for
             convenience so callers don't need to dig into `evidence`.
+        blocked: Whether the homepage response looked like a known
+            bot/WAF block or challenge page, copied from
+            `evidence.blocked` and surfaced here for convenience so
+            callers (and report renderers) don't need to dig into
+            `evidence`. A low `overall_score` alongside `blocked=True`
+            means the site's real content was likely never seen,
+            rather than the site genuinely lacking agentic readiness.
+        blocked_reason: Short, human-readable explanation of the block
+            verdict, copied from `evidence.blocked_reason`, if
+            `blocked` is True.
+        blocked_provider: Best-guess identity of the blocking system,
+            copied from `evidence.blocked_provider`: one of
+            `"akamai"`, `"cloudflare"`, `"generic"`, or `None` if
+            `blocked` is False.
         assessed_at: UTC timestamp when the assessment was assembled.
     """
 
@@ -49,6 +63,9 @@ class AssessmentResult:
     security: dict[str, Any] = field(default_factory=dict)
     overall_score: float = 0.0
     collection_errors: list[dict[str, Any]] = field(default_factory=list)
+    blocked: bool = False
+    blocked_reason: Optional[str] = None
+    blocked_provider: Optional[str] = None
     assessed_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
