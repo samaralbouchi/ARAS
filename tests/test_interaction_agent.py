@@ -16,18 +16,36 @@ components — it adds no new logic to either agent.
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 # Allow running this file directly (e.g. from an IDE "Run" button) by
 # ensuring the project root is importable, not just the `tests/` folder.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    ListFlowable,
+    ListItem,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
+
 from agents.evidence_collector import EvidenceCollectorAgent
 from agents.interaction_agent import InteractionAgent
 from models.evidence import WebsiteEvidence
+from models.interaction import InteractionResult
 
 URL = "https://www.example.com"
-TARGET_URL = "https://www.mytek.tn"
+TARGET_URL = "https://www.bpifrance.fr/"
+REPORT_PATH = Path(__file__).resolve().parent.parent / "interaction_report_bpifrance.pdf"
 
 
 def _print_result(label: str, result) -> None:
@@ -162,20 +180,190 @@ def test_everything_missing_scores_zero() -> None:
 
 # ---------------------------------------------------------------------------
 # End-to-end scenario: real website -> Evidence Collector -> Interaction
-# Agent. Adds no new logic to either agent; it only orchestrates the two
-# existing components.
+# Agent -> PDF report.
+#
+# This section adds no logic to either agent; it only orchestrates the two
+# existing components and renders their output. `reportlab` is used to build
+# the PDF since no PDF library was already part of the project.
 # ---------------------------------------------------------------------------
+
+# Maps each `InteractionResult.checks` key to its human-readable label, used
+# when rendering the criteria table in the PDF report.
+_CRITERIA_LABELS: dict[str, str] = {
+    "mcp_endpoint": "MCP endpoint",
+    "mcp_tools_and_resources": "MCP tools/resources",
+    "openapi_spec": "OpenAPI specification",
+    "swagger_documentation": "Swagger/ReDoc docs",
+    "agent_actionability": "Agent actionability",
+}
+
+
+def _criterion_detail_summary(name: str, details: dict[str, Any]) -> str:
+    """Summarize the supporting evidence for a single criterion.
+
+    Args:
+        name: The criterion's key in `InteractionResult.checks`.
+        details: The full `InteractionResult.details` mapping.
+
+    Returns:
+        A short, human-readable description of the evidence backing
+        this criterion's pass/fail outcome.
+    """
+    if name == "mcp_endpoint":
+        return f"endpoints={details.get('mcp_endpoints') or []}"
+    if name == "mcp_tools_and_resources":
+        return (
+            f"tools={details.get('mcp_tools') or []}, "
+            f"resources={details.get('mcp_resources') or []}"
+        )
+    if name == "openapi_spec":
+        return f"urls={details.get('openapi_urls') or []}"
+    if name == "swagger_documentation":
+        return (
+            f"swagger={details.get('swagger_urls') or []}, "
+            f"redoc={details.get('redoc_urls') or []}"
+        )
+    if name == "agent_actionability":
+        return (
+            f"api={details.get('api_endpoints') or []}, "
+            f"graphql={details.get('graphql_endpoints') or []}, "
+            f"mcp={details.get('callable_mcp_endpoints') or []}"
+        )
+    return ""
+
+
+def _generate_pdf_report(
+    url: str, result: InteractionResult, output_path: Path
+) -> None:
+    """Render an `InteractionResult` as a PDF report.
+
+    Args:
+        url: The website URL that was assessed.
+        result: The evaluation produced by `InteractionAgent.evaluate`.
+        output_path: Filesystem path the PDF should be written to.
+    """
+    styles = getSampleStyleSheet()
+    heading_style = ParagraphStyle(
+        "SectionHeading", parent=styles["Heading2"], spaceBefore=12, spaceAfter=6
+    )
+
+    passed_count = sum(1 for outcome in result.checks.values() if outcome)
+    failed_count = len(result.checks) - passed_count
+
+    story: list[Any] = [
+        Paragraph("ARAS Interaction Assessment Report", styles["Title"]),
+        Spacer(1, 0.5 * cm),
+        Paragraph(f"<b>Website URL:</b> {url}", styles["Normal"]),
+        Paragraph(
+            f"<b>Analysis date:</b> {datetime.now(timezone.utc).isoformat()}",
+            styles["Normal"],
+        ),
+        Paragraph("<b>Agent used:</b> Interaction Agent", styles["Normal"]),
+    ]
+
+    # Section 1: Overall score
+    story.append(Paragraph("1. Overall Score", heading_style))
+    story.append(Paragraph(f"<b>Score:</b> {result.score}/100", styles["Normal"]))
+    story.append(Paragraph(f"<b>Criteria passed:</b> {passed_count}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Criteria failed:</b> {failed_count}", styles["Normal"]))
+
+    # Section 2: Criteria evaluation table
+    story.append(Paragraph("2. Criteria Evaluation", heading_style))
+    table_data = [["Criterion", "Status", "Details"]]
+    for name, label in _CRITERIA_LABELS.items():
+        status = "PASS" if result.checks.get(name) else "FAIL"
+        table_data.append([label, status, _criterion_detail_summary(name, result.details)])
+
+    criteria_table = Table(table_data, colWidths=[5 * cm, 2.5 * cm, 8.5 * cm])
+    criteria_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E3440")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    story.append(criteria_table)
+
+    # Section 3: Issues
+    story.append(Paragraph("3. Issues", heading_style))
+    if result.issues:
+        story.append(
+            ListFlowable(
+                [ListItem(Paragraph(issue, styles["Normal"])) for issue in result.issues],
+                bulletType="bullet",
+            )
+        )
+    else:
+        story.append(Paragraph("No issues found.", styles["Normal"]))
+
+    # Section 4: Recommendations
+    story.append(Paragraph("4. Recommendations", heading_style))
+    if result.recommendations:
+        story.append(
+            ListFlowable(
+                [
+                    ListItem(Paragraph(recommendation, styles["Normal"]))
+                    for recommendation in result.recommendations
+                ],
+                bulletType="bullet",
+            )
+        )
+    else:
+        story.append(Paragraph("No recommendations.", styles["Normal"]))
+
+    SimpleDocTemplate(str(output_path), pagesize=A4).build(story)
+
+
+def _print_console_summary(url: str, result: InteractionResult, report_path: Path) -> None:
+    """Print the human-facing summary of a real-site assessment run.
+
+    Args:
+        url: The website URL that was assessed.
+        result: The evaluation produced by `InteractionAgent.evaluate`.
+        report_path: Filesystem path the PDF report was written to.
+    """
+    try:
+        "✓".encode(sys.stdout.encoding or "utf-8")
+        pass_mark, fail_mark = "✓", "✗"
+    except UnicodeEncodeError:
+        pass_mark, fail_mark = "[PASS]", "[FAIL]"
+
+    print("=" * 30)
+    print("ARAS Interaction Report")
+    print(f"Website: {url}")
+    print()
+    print(f"Score: {result.score}/100")
+    print()
+    print("Checks:")
+    for name, label in _CRITERIA_LABELS.items():
+        mark = pass_mark if result.checks.get(name) else fail_mark
+        print(f"{mark} {label}")
+    print()
+    print("PDF generated:")
+    print(report_path)
+    print("=" * 30)
 
 
 def test_real_site_interaction() -> None:
-    """End-to-end: collect real evidence, then evaluate interaction/actionability.
+    """End-to-end: collect real evidence, evaluate it, render a PDF report.
 
-    Requires network access.
+    Chains the existing `EvidenceCollectorAgent` into the existing
+    `InteractionAgent` against a live website, then renders the
+    resulting `InteractionResult` as a PDF. Requires network access.
     """
     evidence = EvidenceCollectorAgent().collect(TARGET_URL)
     result = InteractionAgent().evaluate(evidence)
     _print_result(f"real site: {TARGET_URL}", result)
 
+    _generate_pdf_report(TARGET_URL, result, REPORT_PATH)
+    _print_console_summary(TARGET_URL, result, REPORT_PATH)
+
+    assert REPORT_PATH.exists()
     assert 0.0 <= result.score <= 100.0
     assert len(result.checks) == 5
 

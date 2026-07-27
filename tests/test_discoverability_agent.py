@@ -7,7 +7,7 @@ here — no network access, HTML parsing, or other evidence-collection
 tool is exercised by these tests.
 
 It also includes an end-to-end scenario against a real website
-(`https://www.mytek.tn`) that chains the existing
+(`https://www.bpifrance.fr/) that chains the existing
 `EvidenceCollectorAgent` into the `DiscoverabilityAgent` and renders
 the outcome as a PDF report. That scenario only orchestrates existing
 components — it adds no new logic to either agent.
@@ -225,8 +225,8 @@ def test_everything_missing_scores_near_zero() -> None:
 # the PDF since no PDF library was already part of the project.
 # ---------------------------------------------------------------------------
 
-TARGET_URL = "https://www.mytek.tn"
-REPORT_PATH = Path(__file__).resolve().parent.parent / "discoverability_report_mytek.pdf"
+TARGET_URL = "https://www.bpifrance.fr/"
+REPORT_PATH = Path(__file__).resolve().parent.parent / "discoverability_report_bpifrance.pdf"
 
 # Maps each `DiscoverabilityResult.checks` key to its human-readable label
 # and the `details` key(s) that best summarize it, used when rendering the
