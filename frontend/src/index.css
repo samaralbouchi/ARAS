@@ -1,0 +1,84 @@
+body {
+  margin: 0;
+  font-family: "Inter", Arial, sans-serif;
+  background: #f4f7fb;
+  color: #1f2937;
+}
+
+.container {
+  max-width: 1200px;
+  margin: auto;
+  padding: 40px;
+}
+
+h1 {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: #6b7280;
+  margin-bottom: 30px;
+}
+
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  margin-bottom: 25px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+
+.input-box {
+  display: flex;
+  gap: 15px;
+}
+
+
+input {
+  flex: 1;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  font-size: 16px;
+}
+
+
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 14px 25px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+
+button:hover {
+  background: #1d4ed8;
+}
+
+
+.scores {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap:20px;
+}
+
+
+.score-card {
+  background:white;
+  padding:20px;
+  border-radius:16px;
+  text-align:center;
+  box-shadow:0 5px 15px rgba(0,0,0,0.08);
+}
+
+
+.score-value {
+  font-size:32px;
+  font-weight:bold;
+}
