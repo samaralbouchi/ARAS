@@ -15,7 +15,6 @@ def health():
 
 @router.post("/assess")
 async def assess(request: AssessmentRequest):
-
     result = await service.assess(str(request.url))
 
     return result

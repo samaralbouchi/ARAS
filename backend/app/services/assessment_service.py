@@ -4,6 +4,8 @@ from agents.orchestrator_agent import OrchestratorAgent
 from agents.recommendation_agent import RecommendationAgent
 from agents.report_generator_agent import ReportGeneratorAgent
 
+from rag.retriever import KnowledgeBaseRetriever
+
 from models.discoverability import DiscoverabilityResult
 from models.comprehension import ComprehensionResult
 from models.interaction import InteractionResult
@@ -23,12 +25,18 @@ class AssessmentService:
 
     def __init__(self):
         self.orchestrator = OrchestratorAgent()
-        self.recommendation_agent = RecommendationAgent()
+        retriever = KnowledgeBaseRetriever(
+            k=4
+        )
+
+        self.recommendation_agent = RecommendationAgent(
+            retriever=retriever
+        )
+
         self.report_generator = ReportGeneratorAgent()
 
 
     async def assess(self, url: str) -> dict:
-
         # 1. Run Orchestrator
         assessment_result = self.orchestrator.run({
             "url": url
@@ -106,7 +114,6 @@ class AssessmentService:
             assessment=report_assessment,
             recommendations=report_recommendations
         )
-
 
         # 6. API response
         return {
