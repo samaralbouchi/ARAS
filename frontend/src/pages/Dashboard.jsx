@@ -25,6 +25,14 @@ function Dashboard() {
         url: url,
       });
 
+      console.log("========== FRONTEND DATA ==========");
+      console.log(response.data);
+      console.log("RECOMMENDATIONS:");
+      console.log(response.data.recommendations);
+      console.log("FIRST RAG:");
+      console.log(response.data.recommendations?.[0]?.rag_context);
+      console.log("==================================");
+
       setResult(response.data);
     } catch (error) {
       console.error(error);

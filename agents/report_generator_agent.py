@@ -321,6 +321,7 @@ class ReportGeneratorAgent:
 
         if not assessment.url:
             raise ValueError("AssessmentResult.url is required")
+        
 
         return AgenticReadinessReport(
             url=assessment.url,

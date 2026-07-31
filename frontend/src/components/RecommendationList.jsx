@@ -40,6 +40,24 @@ function RecommendationList({ recommendations }) {
             <p>
               <strong>Recommendation:</strong> {rec.recommendation}
             </p>
+            {rec.rag_context && (
+                <div
+                    style={{
+                    marginTop: "15px",
+                    padding: "12px",
+                    background: "#f3f4f6",
+                    borderRadius: "8px",
+                    whiteSpace: "pre-wrap",
+                    fontSize: "14px",
+                    }}
+                >
+                    <strong>RAG Context:</strong>
+
+                    <p>
+                    {rec.rag_context}
+                    </p>
+                </div>
+                )}
 
             <span
               style={{
