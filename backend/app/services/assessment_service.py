@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-
+import httpx
 from agents.orchestrator_agent import OrchestratorAgent
 from agents.recommendation_agent import RecommendationAgent
 from agents.report_generator_agent import ReportGeneratorAgent
@@ -35,8 +35,29 @@ class AssessmentService:
 
         self.report_generator = ReportGeneratorAgent()
 
+    async def check_url(self, url: str) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    url,
+                    follow_redirects=True
+                )
+
+                return response.status_code < 400
+
+        except Exception:
+            return False
+
 
     async def assess(self, url: str) -> dict:
+
+        # 0. Validate URL
+        if not await self.check_url(url):
+            return {
+                "status": "error",
+                "message": "Site inexistant ou inaccessible",
+                "url": url
+            }
         # 1. Run Orchestrator
         assessment_result = self.orchestrator.run({
             "url": url
