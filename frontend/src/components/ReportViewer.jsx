@@ -5,13 +5,20 @@ function ReportViewer({ report }) {
   if (!report) return null;
 
   return (
-    <div>
+    <div className="report-viewer">
 
-      <h2>Assessment Report</h2>
+      <h2>
+        Assessment Report
+      </h2>
 
-      <button onClick={() => downloadReportPDF(report)}>
-        📄 Download PDF
+
+      <button
+        className="pdf-button"
+        onClick={() => downloadReportPDF(report)}
+      >
+        📄 Download PDF Report
       </button>
+
 
     </div>
   );
