@@ -4,24 +4,21 @@ import api from "../api/axios";
 import ScoreCard from "../components/ScoreCard";
 import RecommendationList from "../components/RecommendationList";
 import ReportViewer from "../components/ReportViewer";
-
+import OverallScore from "../components/OverallScore";
+import LoadingAgents from "../components/LoadingAgents";
 
 function Dashboard() {
-
   const [url, setUrl] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-
   async function analyze() {
-
     if (!url) {
       alert("Please enter a website URL");
       return;
     }
 
     try {
-
       setLoading(true);
 
       const response = await api.post("/assess", {
@@ -29,125 +26,88 @@ function Dashboard() {
       });
 
       setResult(response.data);
-
     } catch (error) {
-
       console.error(error);
       alert("Error while analyzing the website.");
-
     } finally {
-
       setLoading(false);
-
     }
   }
 
-
   return (
-
     <div className="container">
 
+      {/* Hero Section */}
 
-      <h1>
-        ARAS Assessment Dashboard
-      </h1>
+      <section className="hero">
 
+        <h1>ARAF</h1>
 
-      <p className="subtitle">
-        Evaluate how ready a website is for AI agents
-      </p>
+        <h2>
+          Agentic Readiness Assessment Framework
+        </h2>
 
-
-
-      <div className="card">
+        <p>
+          Evaluate how prepared your website is for AI Agents,
+          Large Language Models (LLMs), GEO, AEO and the
+          Agentic Web.
+        </p>
 
         <div className="input-box">
 
-
           <input
             type="text"
-            placeholder="Enter website URL"
+            placeholder="https://example.com"
             value={url}
-            onChange={(e)=>setUrl(e.target.value)}
+            onChange={(e) => setUrl(e.target.value)}
           />
 
-
-          <button onClick={analyze}>
-
-            {loading ? "Analyzing..." : "Analyze"}
-
+          <button onClick={analyze} disabled={loading}>
+            {loading ? "Analyzing..." : "Analyze Website"}
           </button>
-
 
         </div>
 
-      </div>
+      </section>
 
-
+      {loading && <LoadingAgents />}
 
       {result && (
-
         <>
 
+          <OverallScore
+            score={result.overall_score}
+          />
 
-          <div className="card">
+          <h2 className="section-title">
 
-            <h2>
-              Overall Score
-            </h2>
+            Assessment Categories
 
-
-            <div className="score-value">
-
-              {result.overall_score}/100
-
-            </div>
-
-
-          </div>
-
-
-
-
-
-          <h2>
-            Agent Scores
           </h2>
 
-
-
           <div className="scores">
-
 
             <ScoreCard
               title="Discoverability"
               score={result.discoverability?.score}
             />
 
-
             <ScoreCard
               title="Comprehension"
               score={result.comprehension?.score}
             />
-
 
             <ScoreCard
               title="Interaction"
               score={result.interaction?.score}
             />
 
-
             <ScoreCard
               title="Security"
               score={result.security?.score}
             />
 
-
           </div>
-
-
-
-
 
           <div className="card">
 
@@ -157,10 +117,6 @@ function Dashboard() {
 
           </div>
 
-
-
-
-
           <div className="card">
 
             <ReportViewer
@@ -169,17 +125,11 @@ function Dashboard() {
 
           </div>
 
-
-
         </>
-
       )}
 
-
     </div>
-
   );
 }
-
 
 export default Dashboard;
