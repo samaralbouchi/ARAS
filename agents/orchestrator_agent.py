@@ -29,6 +29,7 @@ from agents.interaction_agent import InteractionAgent
 from agents.security_agent import SecurityAgent
 from models.assessment import AssessmentResult
 from models.evidence import WebsiteEvidence
+from agents.recommendation_agent import RecommendationAgent
 
 # Number of analysis agents run per assessment. Kept as a named
 # constant (rather than len(...)) so the intent reads clearly at the
@@ -62,6 +63,7 @@ class OrchestratorAgent:
         comprehension_agent: Optional[ComprehensionAgent] = None,
         interaction_agent: Optional[InteractionAgent] = None,
         security_agent: Optional[SecurityAgent] = None,
+        recommendation_agent: Optional[RecommendationAgent] = None,
     ) -> None:
         """Initialize the orchestrator, optionally overriding its collaborators.
 
@@ -87,7 +89,8 @@ class OrchestratorAgent:
         self._comprehension_agent = comprehension_agent or ComprehensionAgent()
         self._interaction_agent = interaction_agent or InteractionAgent()
         self._security_agent = security_agent or SecurityAgent()
-
+        self._recommendation_agent = recommendation_agent or RecommendationAgent()
+    
     def run(self, input_data: dict[str, Any]) -> AssessmentResult:
         """Run a full assessment given the agent's standard input contract.
 
@@ -109,10 +112,18 @@ class OrchestratorAgent:
             An `AssessmentResult` combining the raw evidence and all
             four analysis results, plus an aggregate `overall_score`.
         """
+        
         evidence = self._evidence_collector.collect(url)
 
         discoverability, comprehension, interaction, security = self._run_analysis_agents(
             evidence
+        )
+
+        recommendations = self._recommendation_agent.evaluate(
+            discoverability,
+            comprehension,
+            interaction,
+            security,
         )
 
         scores = [
@@ -122,7 +133,7 @@ class OrchestratorAgent:
             security.score,
         ]
 
-        return AssessmentResult(
+        assessment_result = AssessmentResult(
             url=url,
             evidence=evidence.to_dict(),
             discoverability=discoverability.to_dict(),
@@ -138,6 +149,8 @@ class OrchestratorAgent:
             blocked_reason=evidence.blocked_reason,
             blocked_provider=evidence.blocked_provider,
         )
+        
+        return assessment_result
 
     # ------------------------------------------------------------------
     # Parallel analysis

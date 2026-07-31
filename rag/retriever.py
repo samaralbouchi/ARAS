@@ -4,7 +4,7 @@ for the Recommendation Agent.
 """
 
 import os
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
 PERSIST_DIR = os.path.join(os.path.dirname(__file__), "chroma_store")
