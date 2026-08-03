@@ -272,7 +272,10 @@ class PDFRenderer(BaseRenderer):
 
         if report.rag_sources_used:
             story.append(Paragraph("Knowledge Base Sources Used", styles["Heading2"]))
-            items = [ListItem(Paragraph(s, styles["Normal"])) for s in report.rag_sources_used]
+            items = [
+                ListItem(Paragraph(f"{s['source']} [{s['source_type']}]", styles["Normal"]))
+                for s in report.rag_sources_used
+            ]
             story.append(ListFlowable(items, bulletType="bullet"))
 
         doc.build(story)

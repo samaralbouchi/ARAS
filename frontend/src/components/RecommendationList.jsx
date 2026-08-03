@@ -19,6 +19,7 @@ function RecommendationList({ recommendations }) {
         else if (rec.priority === "high") color = "#f59e0b";
         else if (rec.priority === "medium") color = "#22c55e";
 
+
         return (
           <div
             key={index}
@@ -31,33 +32,18 @@ function RecommendationList({ recommendations }) {
               borderLeft: `6px solid ${color}`,
             }}
           >
+
             <h3>{rec.category}</h3>
 
             <p>
               <strong>Issue:</strong> {rec.issue}
             </p>
 
+
             <p>
               <strong>Recommendation:</strong> {rec.recommendation}
             </p>
-            {rec.rag_context && (
-                <div
-                    style={{
-                    marginTop: "15px",
-                    padding: "12px",
-                    background: "#f3f4f6",
-                    borderRadius: "8px",
-                    whiteSpace: "pre-wrap",
-                    fontSize: "14px",
-                    }}
-                >
-                    <strong>RAG Context:</strong>
 
-                    <p>
-                    {rec.rag_context}
-                    </p>
-                </div>
-                )}
 
             <span
               style={{
@@ -70,6 +56,37 @@ function RecommendationList({ recommendations }) {
             >
               {rec.priority.toUpperCase()}
             </span>
+
+
+            {/* RAG explanation */}
+            {rec.rag_context && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  padding: "15px",
+                  background: "#f8fafc",
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+
+                <h4>
+                  Why this recommendation?
+                </h4>
+
+                <pre
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    fontSize: "13px",
+                    color: "#334155",
+                  }}
+                >
+                  {rec.rag_context}
+                </pre>
+
+              </div>
+            )}
+
           </div>
         );
       })}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 
@@ -13,9 +13,11 @@ class Recommendation:
     recommendation: str
     priority: str
     rag_context: str = ""
+    rag_sources: List[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class RecommendationResult:
     recommendations: List[Recommendation]
     total_issues: int
+    rag_sources_used: List[dict] = field(default_factory=list)

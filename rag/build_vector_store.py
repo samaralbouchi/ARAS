@@ -46,11 +46,11 @@ EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 COLLECTION_NAME = "araf_knowledge_base"
 
 
-def load_documents_from_directory(directory):
+def load_documents_from_directory(directory, source_type):
     """
-    Load markdown documents from a directory.
+    Load markdown documents from a directory and tag each with its
+    provenance (internal vs external official sources).
     """
-
     loader = DirectoryLoader(
         directory,
         glob="**/*.md",
@@ -59,32 +59,18 @@ def load_documents_from_directory(directory):
             "encoding": "utf-8"
         },
     )
-
-    return loader.load()
+    docs = loader.load()
+    for doc in docs:
+        doc.metadata["source_type"] = source_type
+    return docs
 
 
 def load_documents():
-
     documents = []
-
     print("Loading internal knowledge base...")
-
-    documents.extend(
-        load_documents_from_directory(
-            KNOWLEDGE_BASE_DIR
-        )
-    )
-
-
+    documents.extend(load_documents_from_directory(KNOWLEDGE_BASE_DIR, "internal"))
     print("Loading external official sources...")
-
-    documents.extend(
-        load_documents_from_directory(
-            EXTERNAL_SOURCES_DIR
-        )
-    )
-
-
+    documents.extend(load_documents_from_directory(EXTERNAL_SOURCES_DIR, "external"))
     return documents
 
 

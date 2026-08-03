@@ -59,7 +59,9 @@ class _SupportsTopicRetrieval(Protocol):
     fake instead.
     """
 
-    def get_context_for_topics(self, topics: list[str], k_per_topic: int = 2) -> str: ...
+    def get_context_for_topics(
+        self, topics: list[str], k_per_topic: int = 2
+    ) -> tuple[str, list[dict]]: ...
 
 
 @dataclass(frozen=True)
@@ -137,9 +139,19 @@ class RecommendationAgent:
         recommendations = [self._enrich(entry) for entry in raw_entries]
         recommendations.sort(key=lambda rec: _PRIORITY_RANK[rec.priority])
 
+        seen_sources = set()
+        rag_sources_used = []
+        for rec in recommendations:
+            for s in rec.rag_sources:
+                key = (s["source"], s["source_type"])
+                if key not in seen_sources:
+                    seen_sources.add(key)
+                    rag_sources_used.append(s)
+
         return RecommendationResult(
             recommendations=recommendations,
             total_issues=len(recommendations),
+            rag_sources_used=rag_sources_used,
         )
 
     # ------------------------------------------------------------------
@@ -194,17 +206,9 @@ class RecommendationAgent:
     # ------------------------------------------------------------------
     # Enrichment
     # ------------------------------------------------------------------
-
+    
     def _enrich(self, entry: _RawEntry) -> Recommendation:
-        """Attach a priority and RAG context to a single raw entry.
-
-        Args:
-            entry: The raw, un-prioritized, un-enriched entry.
-
-        Returns:
-            The corresponding `Recommendation`.
-        """
-        rag_context = self._fetch_rag_context(entry.issue)
+        rag_context, rag_sources = self._fetch_rag_context(entry.issue)
         priority = self._compute_priority(entry.category_score)
 
         recommendation_text = self._format_recommendation_text(
@@ -220,7 +224,10 @@ class RecommendationAgent:
             recommendation=recommendation_text,
             priority=priority,
             rag_context=rag_context,
+            rag_sources=rag_sources,
         )
+    
+
 
     def _format_recommendation_text(
         self,
@@ -281,27 +288,15 @@ class RecommendationAgent:
             return "high"
         return "medium"
 
-    def _fetch_rag_context(self, issue: str) -> str:
+    def _fetch_rag_context(self, issue: str) -> tuple[str, list[dict]]:
         """Retrieve Knowledge Base context for a single issue.
-
-        Degrades gracefully: if no retriever was injected, or if
-        retrieval fails for any reason (e.g. the vector store is
-        unavailable), this returns an empty string instead of raising,
-        since a recommendation is still actionable without its
-        supporting context.
-
-        Args:
-            issue: The failed-criterion description to use as the
-                retrieval query.
-
-        Returns:
-            Formatted Knowledge Base excerpts, or `""` if unavailable.
+        ...
         """
         if self._retriever is None:
-            return ""
+            return "", []
         try:
             return self._retriever.get_context_for_topics(
                 [issue], k_per_topic=self._k_per_topic
             )
         except Exception:
-            return ""
+            return "", []

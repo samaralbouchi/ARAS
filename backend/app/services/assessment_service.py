@@ -40,14 +40,20 @@ class AssessmentService:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(
                     url,
-                    follow_redirects=True
+                    follow_redirects=True,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/124.0 Safari/537.36"
+                        )
+                    },
                 )
 
                 return response.status_code < 400
 
         except Exception:
             return False
-
 
     async def assess(self, url: str) -> dict:
 
@@ -94,7 +100,7 @@ class AssessmentService:
         # Object expected by ReportGeneratorAgent
         report_recommendations = SimpleNamespace(
             recommendations=recommendation_result.recommendations,
-            rag_sources_used=[]
+            rag_sources_used=recommendation_result.rag_sources_used
         )
 
 
