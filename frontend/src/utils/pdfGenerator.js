@@ -262,6 +262,82 @@ export function downloadReportPDF(result) {
 
 
 
+    // ===============================
+// HOW TO APPLY
+// ===============================
+
+
+if(rec.how_to_apply){
+
+
+  const howToApply = doc.splitTextToSize(
+    `How to apply:\n${rec.how_to_apply}`,
+    170
+  );
+
+
+  if(y + howToApply.length * 5 > 270){
+
+    doc.addPage();
+    y = 20;
+
+  }
+
+
+  doc.setFont(
+    "helvetica",
+    "normal"
+  );
+
+
+  doc.text(
+    howToApply,
+    18,
+    y
+  );
+
+
+  y += howToApply.length * 5 + 5;
+
+}
+
+
+// ===============================
+// SOURCES
+// ===============================
+
+
+if(rec.sources && rec.sources.length > 0){
+
+
+  const sources = doc.splitTextToSize(
+    `Sources:\n${rec.sources.join(", ")}`,
+    170
+  );
+
+
+  if(y + sources.length * 5 > 270){
+
+    doc.addPage();
+    y = 20;
+
+  }
+
+
+  doc.text(
+    sources,
+    18,
+    y
+  );
+
+
+  y += sources.length * 5 + 10;
+
+}
+
+
+
+
 
     // ===============================
     // RAG CONTEXT

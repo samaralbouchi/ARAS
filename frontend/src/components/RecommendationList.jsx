@@ -19,7 +19,6 @@ function RecommendationList({ recommendations }) {
         else if (rec.priority === "high") color = "#f59e0b";
         else if (rec.priority === "medium") color = "#22c55e";
 
-
         return (
           <div
             key={index}
@@ -43,6 +42,55 @@ function RecommendationList({ recommendations }) {
             <p>
               <strong>Recommendation:</strong> {rec.recommendation}
             </p>
+
+
+            {/* HOW TO APPLY */}
+            {rec.how_to_apply && (
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "15px",
+                  background: "#f0fdf4",
+                  borderRadius: "8px",
+                  border: "1px solid #bbf7d0",
+                }}
+              >
+                <h4>
+                  How to apply
+                </h4>
+
+                <p>
+                  {rec.how_to_apply}
+                </p>
+              </div>
+            )}
+
+
+            {/* SOURCES */}
+            {rec.sources && rec.sources.length > 0 && (
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "15px",
+                  background: "#eff6ff",
+                  borderRadius: "8px",
+                  border: "1px solid #bfdbfe",
+                }}
+              >
+                <h4>
+                  Sources
+                </h4>
+
+                <ul>
+                  {rec.sources.map((source, i) => (
+                    <li key={i}>
+                      {source}
+                    </li>
+                  ))}
+                </ul>
+
+              </div>
+            )}
 
 
             <span

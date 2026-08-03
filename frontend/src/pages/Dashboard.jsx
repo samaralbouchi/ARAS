@@ -28,7 +28,7 @@ function Dashboard() {
       console.log("========== FRONTEND DATA ==========");
       console.log(response.data);
       console.log("RECOMMENDATIONS:");
-      console.log(response.data.recommendations);
+      console.log(JSON.stringify(response.data.recommendations[0], null, 2));
       console.log("FIRST RAG:");
       console.log(response.data.recommendations?.[0]?.rag_context);
       console.log("==================================");

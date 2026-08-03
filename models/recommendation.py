@@ -11,7 +11,9 @@ class Recommendation:
     category: str
     issue: str
     recommendation: str
-    priority: str
+    how_to_apply: str = ""
+    sources: List[str] = field(default_factory=list)
+    priority: str = "medium"
     rag_context: str = ""
     rag_sources: List[dict] = field(default_factory=list)
 
