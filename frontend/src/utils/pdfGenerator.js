@@ -164,7 +164,7 @@ export function downloadReportPDF(result) {
 
 
   // ===============================
-  // RECOMMENDATIONS + RAG
+  // RECOMMENDATIONS
   // ===============================
 
 
@@ -263,102 +263,25 @@ export function downloadReportPDF(result) {
 
 
     // ===============================
-// HOW TO APPLY
-// ===============================
-
-
-if(rec.how_to_apply){
-
-
-  const howText = Array.isArray(rec.how_to_apply)
-    ? rec.how_to_apply.join("\n")
-    : rec.how_to_apply;
-
-
-  const howToApply = doc.splitTextToSize(
-    `How to apply:\n${howText}`,
-     170
-  );
-
-
-  if(y + howToApply.length * 5 > 270){
-
-    doc.addPage();
-    y = 20;
-
-  }
-
-
-  doc.setFont(
-    "helvetica",
-    "normal"
-  );
-
-
-  doc.text(
-    howToApply,
-    18,
-    y
-  );
-
-
-  y += howToApply.length * 5 + 5;
-
-}
-
-
-// ===============================
-// SOURCES
-// ===============================
-
-
-if(rec.sources && rec.sources.length > 0){
-
-
-  const sources = doc.splitTextToSize(
-    `Sources:\n${rec.sources.join(", ")}`,
-    170
-  );
-
-
-  if(y + sources.length * 5 > 270){
-
-    doc.addPage();
-    y = 20;
-
-  }
-
-
-  doc.text(
-    sources,
-    18,
-    y
-  );
-
-
-  y += sources.length * 5 + 10;
-
-}
-
-
-
-
-
-    // ===============================
-    // RAG CONTEXT
+    // HOW TO APPLY
     // ===============================
 
 
-    if(rec.rag_context){
+    if(rec.how_to_apply){
 
 
-      const rag = doc.splitTextToSize(
-        `RAG Context:\n${rec.rag_context}`,
-        165
+      const howText = Array.isArray(rec.how_to_apply)
+        ? rec.how_to_apply.join("\n")
+        : rec.how_to_apply;
+
+
+      const howToApply = doc.splitTextToSize(
+        `How to apply:\n${howText}`,
+         170
       );
 
 
-      if(y + rag.length * 4 > 270){
+      if(y + howToApply.length * 5 > 270){
 
         doc.addPage();
         y = 20;
@@ -368,26 +291,52 @@ if(rec.sources && rec.sources.length > 0){
 
       doc.setFont(
         "helvetica",
-        "italic"
+        "normal"
       );
-
-      doc.setFontSize(9);
 
 
       doc.text(
-        rag,
+        howToApply,
         18,
         y
       );
 
 
-      y += rag.length * 4 + 10;
+      y += howToApply.length * 5 + 5;
+
+    }
 
 
-      doc.setFont(
-        "helvetica",
-        "normal"
+    // ===============================
+    // SOURCES
+    // ===============================
+
+
+    if(rec.sources && rec.sources.length > 0){
+
+
+      const sources = doc.splitTextToSize(
+        `Sources:\n${rec.sources.join(", ")}`,
+        170
       );
+
+
+      if(y + sources.length * 5 > 270){
+
+        doc.addPage();
+        y = 20;
+
+      }
+
+
+      doc.text(
+        sources,
+        18,
+        y
+      );
+
+
+      y += sources.length * 5 + 10;
 
     }
 
