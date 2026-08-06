@@ -119,37 +119,48 @@ Generate JSON now.
 """
 
 
-        response = self.llm.invoke(prompt)
+        try:
+
+            response = self.llm.invoke(prompt)
+            raw = response.content.strip()
+
+        except Exception as e:
+
+            print(
+                "LLM call failed (is the Ollama server running and "
+                "reachable at OLLAMA_HOST? is 'llama3.2' pulled?):",
+                e
+            )
+            raw = None
 
 
-        raw = response.content.strip()
+        if raw:
+
+            print("\n========== RAW LLM RESPONSE ==========")
+            print(raw)
+            print("======================================")
+
+            json_text = self._extract_json(raw)
+
+            if json_text:
+
+                try:
+
+                    result = json.loads(json_text)
 
 
-        print("\n========== RAW LLM RESPONSE ==========")
-        print(raw)
-        print("======================================")
+                    if isinstance(result,list):
+                        return result
 
 
-        json_text = self._extract_json(raw)
+                except Exception as e:
+
+                    print(
+                        "JSON parsing error:",
+                        e
+                    )
 
 
-        if json_text:
-
-            try:
-
-                result = json.loads(json_text)
-
-
-                if isinstance(result,list):
-                    return result
-
-
-            except Exception as e:
-
-                print(
-                    "JSON parsing error:",
-                    e
-                )
 
 
 

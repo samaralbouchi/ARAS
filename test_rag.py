@@ -1,23 +1,15 @@
-from rag.retriever import KnowledgeBaseRetriever
+from rag.generator import RecommendationGenerator
 
+gen = RecommendationGenerator()
 
-retriever = KnowledgeBaseRetriever(k=3)
-
-
-questions = [
-    "Why should a website provide an OpenAPI specification?",
-    "What is MCP for AI agents?",
-    "Why is Schema.org structured data important?",
-    "What are important security headers?"
+issues = [
+    {
+        "issue": "No llms.txt found",
+        "base_recommendation": "Add an llms.txt file.",
+        "rag_sources": []
+    }
 ]
 
+result = gen.generate_all(issues)
 
-for q in questions:
-    print("\n====================")
-    print("QUESTION:")
-    print(q)
-
-    print("\nRESULT:")
-    print(
-        retriever.get_context(q)
-    )
+print(result)
