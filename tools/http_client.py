@@ -69,7 +69,12 @@ class HttpClient:
     means (HTML, XML, JSON, etc.).
     """
 
-    DEFAULT_USER_AGENT = "ARAS-EvidenceCollector/1.0 (+agentic-readiness-assessment)"
+    DEFAULT_USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
 
     def __init__(
         self,
@@ -91,7 +96,16 @@ class HttpClient:
                 treating the chain as a redirect loop.
             verify_ssl: Whether to verify TLS certificates.
         """
-        merged_headers = {"User-Agent": user_agent}
+        merged_headers = {
+            "User-Agent": user_agent,
+            "Accept": (
+                "text/html,application/xhtml+xml,"
+                "application/xml;q=0.9,image/webp,*/*;q=0.8"
+            ),
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+        }
         if headers:
             merged_headers.update(headers)
 

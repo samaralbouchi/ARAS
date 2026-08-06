@@ -81,6 +81,36 @@ class DiscoverabilityAgent:
         for name, evaluator in criteria:
             self._apply(name, evaluator(evidence), result)
 
+
+
+
+
+        # ================= DEBUG TEMPORAIRE =================
+
+        print("========== DEBUG DISCOVERABILITY ==========")
+
+        print("ROBOTS TXT:", bool(evidence.robots_txt))
+        print("ROBOTS CONTENT:",
+            evidence.robots_txt[:100] if evidence.robots_txt else None)
+
+        print("SITEMAP XML:", bool(evidence.sitemap_xml))
+        print("SITEMAP CONTENT:",
+            evidence.sitemap_xml[:200] if evidence.sitemap_xml else None)
+
+        print("LLMS TXT:", bool(evidence.llms_txt))
+        print("LLMS CONTENT:",
+            evidence.llms_txt[:100] if evidence.llms_txt else None)
+
+        print("API ANALYSIS:", evidence.api_analysis)
+
+        print("INTERNAL LINKS:",
+            len(evidence.internal_links))
+
+        print("==========================================")
+
+
+        
+
         result.score = self._compute_score(result.checks)
         return result
 
@@ -328,3 +358,4 @@ class DiscoverabilityAgent:
             issue="No internal navigation links found",
             recommendation="Add internal links so agents can navigate beyond the homepage.",
         )
+

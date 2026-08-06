@@ -208,28 +208,150 @@ class EvidenceCollectorAgent:
         evidence.response_time = response.response_time
 
         block_result = self._bot_block_detector_cls(response).detect()
+        if block_result.blocked:
+            evidence.blocked = True
+            evidence.blocked_reason = block_result.reason
+            evidence.blocked_provider = block_result.provider
+
+            return
         evidence.blocked = block_result.blocked
         evidence.blocked_reason = block_result.reason
         evidence.blocked_provider = block_result.provider
 
-        parsed = self._html_parser_cls(response.content, base_url=response.final_url).parse()
+        parsed = self._html_parser_cls(
+            response.content,
+            base_url=response.final_url
+        ).parse()
+
+        print("META DESCRIPTION:", parsed.meta_description)
+        print("TWITTER:", parsed.twitter_cards)
+        print("SCHEMA TYPES:", parsed.schema_org_types)
+        print("ARIA:", parsed.aria_attributes)
+
+
+        # -------------------------
+        # Metadata
+        # -------------------------
+
         evidence.title = parsed.title
+
+        evidence.meta_description = (
+            parsed.meta_description
+        )
+
         evidence.language = parsed.language
+
         evidence.meta_tags = parsed.meta_tags
+
         evidence.canonical = parsed.canonical
-        evidence.open_graph = parsed.open_graph
+
         evidence.robots_meta = parsed.robots_meta
+
+
+
+        # -------------------------
+        # Social semantics
+        # -------------------------
+
+        evidence.open_graph = (
+            parsed.open_graph
+        )
+
+        evidence.twitter_cards = (
+            parsed.twitter_cards
+        )
+
+
+
+        # -------------------------
+        # Structured semantics
+        # -------------------------
+
+        evidence.schema_org_types = (
+            parsed.schema_org_types
+        )
+
+        evidence.json_ld_entities = (
+            parsed.json_ld_entities
+        )
+
+
+
+        # -------------------------
+        # Accessibility
+        # -------------------------
+
+        evidence.aria_attributes = (
+            parsed.aria_attributes
+        )
+
+        evidence.labels_count = (
+            parsed.labels_count
+        )
+
+        evidence.forms_count = (
+            parsed.forms_count
+        )
+
+
+
+        # -------------------------
+        # Resources
+        # -------------------------
+
         evidence.favicon = parsed.favicon
-        evidence.internal_links = parsed.internal_links
-        evidence.external_links = parsed.external_links
-        evidence.javascript_files = parsed.javascript_files
-        evidence.css_files = parsed.css_files
-        evidence.semantic_tags = parsed.semantic_tags
-        evidence.headings = parsed.headings
-        evidence.images_total = parsed.images_total
-        evidence.images_with_alt = parsed.images_with_alt
-        evidence.text_length = parsed.text_length
-        evidence.html_length = parsed.html_length
+
+        evidence.internal_links = (
+            parsed.internal_links
+        )
+
+        evidence.external_links = (
+            parsed.external_links
+        )
+
+        evidence.javascript_files = (
+            parsed.javascript_files
+        )
+
+        evidence.css_files = (
+            parsed.css_files
+        )
+
+
+
+        # -------------------------
+        # HTML structure
+        # -------------------------
+
+        evidence.semantic_tags = (
+            parsed.semantic_tags
+        )
+
+        evidence.headings = (
+            parsed.headings
+        )
+
+
+
+        # -------------------------
+        # Images/content
+        # -------------------------
+
+        evidence.images_total = (
+            parsed.images_total
+        )
+
+        evidence.images_with_alt = (
+            parsed.images_with_alt
+        )
+
+        evidence.text_length = (
+            parsed.text_length
+        )
+
+        evidence.html_length = (
+            parsed.html_length
+        )
 
     # ------------------------------------------------------------------
     # Structured data: SchemaExtractor
@@ -251,6 +373,38 @@ class EvidenceCollectorAgent:
             "microdata": result.microdata,
             "rdfa": result.rdfa,
         }
+
+        evidence.json_ld_entities = (
+        result.json_ld
+    )
+
+
+        # Extraction des types Schema.org
+
+        schema_types = []
+
+        for entity in result.json_ld:
+
+            if isinstance(entity, dict):
+
+                entity_type = entity.get("@type")
+
+                if isinstance(entity_type, str):
+
+                    schema_types.append(
+                        entity_type
+                    )
+
+                elif isinstance(entity_type, list):
+
+                    schema_types.extend(
+                        entity_type
+                    )
+
+
+        evidence.schema_org_types = list(
+            set(schema_types)
+        )
 
     # ------------------------------------------------------------------
     # Standard resources: ResourceDiscovery

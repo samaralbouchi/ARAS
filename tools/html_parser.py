@@ -1,18 +1,15 @@
-"""HTML parsing layer for the Evidence Collector.
 
-This module is responsible ONLY for parsing a raw HTML string into
-structured information. It performs no HTTP requests, downloads no
-external resources, performs no scoring, and makes no assumptions
-about Agentic Readiness — those concerns live elsewhere (the HTTP
-client and the agent/scoring layers).
+"""
+HTML parsing layer for the Evidence Collector.
 
-The parser consumes only an HTML string and, optionally, the base URL
-it was fetched from (used solely to resolve relative links).
+This module converts raw HTML into structured evidence.
+It performs no scoring and no recommendation logic.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+import json
+from typing import Optional, Any
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -20,7 +17,13 @@ from bs4.element import Tag
 
 from models.html import HtmlParseResult
 
-_IGNORED_LINK_SCHEMES = ("javascript:", "mailto:", "tel:")
+
+_IGNORED_LINK_SCHEMES = (
+    "javascript:",
+    "mailto:",
+    "tel:",
+)
+
 
 _SEMANTIC_TAGS = (
     "header",
@@ -32,373 +35,571 @@ _SEMANTIC_TAGS = (
     "footer",
 )
 
-_HEADING_TAGS = ("h1", "h2", "h3", "h4", "h5", "h6")
+
+_HEADING_TAGS = (
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+)
 
 
 class HtmlParser:
-    """Extracts structural information from a raw HTML document.
 
-    This class holds no network access and no knowledge of scoring or
-    recommendations. It is a pure, reusable transformation from raw
-    HTML text to a :class:`HtmlParseResult`.
-    """
+    def __init__(
+        self,
+        html: str,
+        base_url: Optional[str] = None
+    ) -> None:
 
-    def __init__(self, html: str, base_url: Optional[str] = None) -> None:
-        """Initialize the parser with raw HTML and an optional base URL.
-
-        Args:
-            html: The raw HTML document to parse.
-            base_url: The URL the HTML was fetched from, used to resolve
-                relative links and to classify links as internal or
-                external. If omitted, relative links are left unresolved
-                and all links are treated as external.
-        """
         self._html = html
         self._base_url = base_url
-        self._soup = BeautifulSoup(html or "", "html.parser")
-
-    def parse(self) -> HtmlParseResult:
-        """Parse the HTML document into a structured result.
-
-        Returns:
-            A `HtmlParseResult` describing the document. Missing or
-            malformed elements never raise; they are simply omitted.
-        """
-        internal_links, external_links = self._extract_links()
-        images_total, images_with_alt = self._extract_image_alt_coverage()
-
-        return HtmlParseResult(
-            title=self._extract_title(),
-            language=self._extract_language(),
-            meta_tags=self._extract_meta_tags(),
-            canonical=self._extract_canonical(),
-            open_graph=self._extract_open_graph(),
-            robots_meta=self._extract_robots_meta(),
-            favicon=self._extract_favicon(),
-            internal_links=internal_links,
-            external_links=external_links,
-            javascript_files=self._extract_javascript_files(),
-            css_files=self._extract_css_files(),
-            semantic_tags=self._extract_semantic_tags(),
-            headings=self._extract_headings(),
-            images_total=images_total,
-            images_with_alt=images_with_alt,
-            text_length=self._extract_text_length(),
-            html_length=len(self._html or ""),
+        self._soup = BeautifulSoup(
+            html or "",
+            "html.parser"
         )
 
-    # ------------------------------------------------------------------
-    # Individual extractors
-    # ------------------------------------------------------------------
 
-    def _extract_title(self) -> Optional[str]:
-        """Extract the document's <title> text.
+    def parse(self) -> HtmlParseResult:
 
-        Returns:
-            The stripped title text, or None if absent.
-        """
+        internal_links, external_links = self._extract_links()
+
+        images_total, images_with_alt = (
+            self._extract_image_alt_coverage()
+        )
+
+        return HtmlParseResult(
+
+            # Metadata
+            title=self._extract_title(),
+
+            meta_description=self._extract_meta_description(),
+
+            language=self._extract_language(),
+
+            meta_tags=self._extract_meta_tags(),
+
+            canonical=self._extract_canonical(),
+
+            robots_meta=self._extract_robots_meta(),
+
+
+            # Social metadata
+            open_graph=self._extract_open_graph(),
+
+            twitter_cards=self._extract_twitter_cards(),
+
+
+            # Structured data
+            structured_data=self._extract_structured_data(),
+
+            schema_org_types=self._extract_schema_types(),
+
+            json_ld_entities=self._extract_json_ld_entities(),
+
+
+            # Accessibility
+            aria_attributes=self._extract_aria_attributes(),
+
+            labels_count=self._extract_labels_count(),
+
+            forms_count=len(
+                self._soup.find_all("form")
+            ),
+
+
+            # Resources
+            favicon=self._extract_favicon(),
+
+            internal_links=internal_links,
+
+            external_links=external_links,
+
+            javascript_files=self._extract_javascript_files(),
+
+            css_files=self._extract_css_files(),
+
+
+            # Structure
+            semantic_tags=self._extract_semantic_tags(),
+
+            headings=self._extract_headings(),
+
+
+            # Images
+            images_total=images_total,
+
+            images_with_alt=images_with_alt,
+
+
+            # Content
+            text_length=self._extract_text_length(),
+
+            html_length=len(
+                self._html or ""
+            )
+        )
+
+
+    # ============================================================
+    # METADATA
+    # ============================================================
+
+
+    def _extract_title(self):
+
         tag = self._soup.title
-        if tag is None or tag.string is None:
+
+        if not tag:
             return None
-        text = tag.string.strip()
-        return text or None
 
-    def _extract_language(self) -> Optional[str]:
-        """Extract the `lang` attribute from the <html> tag.
+        return tag.get_text(strip=True) or None
 
-        Returns:
-            The language code, or None if absent.
-        """
-        html_tag = self._soup.find("html")
-        if not isinstance(html_tag, Tag):
-            return None
-        lang = html_tag.get("lang")
-        if not isinstance(lang, str) or not lang.strip():
-            return None
-        return lang.strip()
 
-    def _extract_meta_tags(self) -> dict[str, str]:
-        """Extract every `<meta name="...">` tag into a name/content mapping.
 
-        Returns:
-            A dict mapping meta tag name to its content. Tags without a
-            `name` or `content` attribute are skipped.
-        """
-        meta_tags: dict[str, str] = {}
-        for tag in self._soup.find_all("meta"):
-            if not isinstance(tag, Tag):
-                continue
-            name = tag.get("name")
-            content = tag.get("content")
-            if isinstance(name, str) and name.strip() and isinstance(content, str):
-                meta_tags[name.strip().lower()] = content
-        return meta_tags
+    def _extract_meta_description(self):
 
-    def _extract_open_graph(self) -> dict[str, str]:
-        """Extract every `<meta property="og:*">` tag into a mapping.
+        tag = self._soup.find(
+            "meta",
+            attrs={
+                "name": "description"
+            }
+        )
 
-        Returns:
-            A dict mapping the full `og:*` property name to its content.
-        """
-        open_graph: dict[str, str] = {}
-        for tag in self._soup.find_all("meta"):
-            if not isinstance(tag, Tag):
-                continue
-            prop = tag.get("property")
-            content = tag.get("content")
-            if (
-                isinstance(prop, str)
-                and prop.strip().lower().startswith("og:")
-                and isinstance(content, str)
-            ):
-                open_graph[prop.strip().lower()] = content
-        return open_graph
-
-    def _extract_robots_meta(self) -> dict[str, object]:
-        """Extract and parse `<meta name="robots">` into individual directives.
-
-        Comma-separated directives such as "noindex, nofollow" become
-        boolean flags; directives with a value such as "max-snippet:-1"
-        keep their value as a string.
-
-        Returns:
-            A dict of directive name to True or its associated value.
-            Empty if no robots meta tag is present.
-        """
-        robots_meta: dict[str, object] = {}
-        for tag in self._soup.find_all("meta", attrs={"name": "robots"}):
-            if not isinstance(tag, Tag):
-                continue
-            content = tag.get("content")
-            if not isinstance(content, str):
-                continue
-            for directive in content.split(","):
-                directive = directive.strip()
-                if not directive:
-                    continue
-                if ":" in directive:
-                    key, _, value = directive.partition(":")
-                    robots_meta[key.strip().lower()] = value.strip()
-                else:
-                    robots_meta[directive.lower()] = True
-        return robots_meta
-
-    def _extract_canonical(self) -> Optional[str]:
-        """Extract the resolved canonical URL, if declared.
-
-        Returns:
-            The absolute canonical URL, or None if absent.
-        """
-        tag = self._soup.find("link", attrs={"rel": "canonical"})
         if not isinstance(tag, Tag):
             return None
-        href = tag.get("href")
-        if not isinstance(href, str) or not href.strip():
-            return None
-        return self._resolve_url(href.strip())
 
-    def _extract_favicon(self) -> Optional[str]:
-        """Extract the resolved favicon URL, if declared.
+        content = tag.get("content")
 
-        Supports both `rel="icon"` and `rel="shortcut icon"`.
+        return (
+            content.strip()
+            if isinstance(content, str)
+            else None
+        )
 
-        Returns:
-            The absolute favicon URL, or None if absent.
-        """
-        for tag in self._soup.find_all("link"):
-            if not isinstance(tag, Tag):
-                continue
-            rel_values = tag.get("rel")
-            rel = " ".join(rel_values).lower() if isinstance(rel_values, list) else str(rel_values or "").lower()
-            if rel in ("icon", "shortcut icon"):
-                href = tag.get("href")
-                if isinstance(href, str) and href.strip():
-                    return self._resolve_url(href.strip())
+
+
+    def _extract_meta_tags(self):
+
+        result = {}
+
+        for tag in self._soup.find_all("meta"):
+
+            name = tag.get("name")
+            content = tag.get("content")
+
+            if (
+                isinstance(name, str)
+                and isinstance(content, str)
+            ):
+                result[name.lower()] = content
+
+        return result
+
+
+
+    def _extract_language(self):
+
+        html = self._soup.find("html")
+
+        if isinstance(html, Tag):
+
+            lang = html.get("lang")
+
+            if isinstance(lang, str):
+                return lang.strip()
+
         return None
 
-    def _extract_css_files(self) -> list[str]:
-        """Extract absolute URLs of `<link rel="stylesheet">` resources.
 
-        Returns:
-            A deduplicated list of absolute stylesheet URLs.
-        """
-        css_files: list[str] = []
-        seen: set[str] = set()
-        for tag in self._soup.find_all("link"):
-            if not isinstance(tag, Tag):
+
+    def _extract_canonical(self):
+
+        tag = self._soup.find(
+            "link",
+            rel="canonical"
+        )
+
+        if not isinstance(tag, Tag):
+            return None
+
+        href = tag.get("href")
+
+        if isinstance(href, str):
+
+            return self._resolve_url(
+                href
+            )
+
+        return None
+
+
+
+    def _extract_robots_meta(self):
+
+        result = {}
+
+        tag = self._soup.find(
+            "meta",
+            attrs={
+                "name": "robots"
+            }
+        )
+
+        if not isinstance(tag, Tag):
+            return result
+
+
+        content = tag.get("content")
+
+        if not isinstance(content, str):
+            return result
+
+
+        for item in content.split(","):
+
+            item = item.strip()
+
+            if ":" in item:
+
+                key, value = item.split(
+                    ":",
+                    1
+                )
+
+                result[key] = value
+
+            else:
+
+                result[item] = True
+
+
+        return result
+
+
+
+    # ============================================================
+    # SOCIAL
+    # ============================================================
+
+
+    def _extract_open_graph(self):
+
+        result = {}
+
+        for tag in self._soup.find_all("meta"):
+
+            prop = tag.get("property")
+            content = tag.get("content")
+
+            if (
+                isinstance(prop, str)
+                and prop.startswith("og:")
+                and isinstance(content, str)
+            ):
+
+                result[prop] = content
+
+
+        return result
+
+
+
+    def _extract_twitter_cards(self):
+
+        result = {}
+
+        for tag in self._soup.find_all("meta"):
+
+            name = tag.get("name")
+            content = tag.get("content")
+
+
+            if (
+                isinstance(name, str)
+                and name.startswith("twitter:")
+                and isinstance(content, str)
+            ):
+
+                result[name] = content
+
+
+        return result
+
+
+
+    # ============================================================
+    # STRUCTURED DATA
+    # ============================================================
+
+
+    def _extract_structured_data(self):
+
+        result = {
+            "json-ld": []
+        }
+
+
+        for script in self._soup.find_all(
+            "script",
+            type="application/ld+json"
+        ):
+
+            try:
+
+                data = json.loads(
+                    script.string
+                )
+
+                result["json-ld"].append(
+                    data
+                )
+
+            except Exception:
+
                 continue
-            rel_values = tag.get("rel")
-            rel = " ".join(rel_values).lower() if isinstance(rel_values, list) else str(rel_values or "").lower()
-            if rel != "stylesheet":
-                continue
-            href = tag.get("href")
-            if not isinstance(href, str) or not href.strip():
-                continue
-            resolved = self._resolve_url(href.strip())
-            if resolved not in seen:
-                seen.add(resolved)
-                css_files.append(resolved)
-        return css_files
 
-    def _extract_javascript_files(self) -> list[str]:
-        """Extract absolute URLs of `<script src="...">` resources.
 
-        Returns:
-            A deduplicated list of absolute JavaScript file URLs.
-        """
-        js_files: list[str] = []
-        seen: set[str] = set()
-        for tag in self._soup.find_all("script"):
-            if not isinstance(tag, Tag):
-                continue
-            src = tag.get("src")
-            if not isinstance(src, str) or not src.strip():
-                continue
-            resolved = self._resolve_url(src.strip())
-            if resolved not in seen:
-                seen.add(resolved)
-                js_files.append(resolved)
-        return js_files
+        return result
 
-    def _extract_semantic_tags(self) -> dict[str, int]:
-        """Count occurrences of each HTML5 semantic element.
 
-        Considers `<header>`, `<nav>`, `<main>`, `<article>`,
-        `<section>`, `<aside>`, and `<footer>`.
 
-        Returns:
-            A dict mapping tag name to occurrence count. Tags that do
-            not appear at all are omitted rather than recorded as 0.
-        """
-        counts: dict[str, int] = {}
-        for tag_name in _SEMANTIC_TAGS:
-            found = self._soup.find_all(tag_name)
-            if found:
-                counts[tag_name] = len(found)
-        return counts
+    def _extract_json_ld_entities(self):
 
-    def _extract_headings(self) -> dict[str, int]:
-        """Count occurrences of each heading level (`<h1>`-`<h6>`).
+        entities = []
 
-        Returns:
-            A dict mapping heading tag name to occurrence count.
-            Levels that do not appear at all are omitted rather than
-            recorded as 0.
-        """
-        counts: dict[str, int] = {}
-        for tag_name in _HEADING_TAGS:
-            found = self._soup.find_all(tag_name)
-            if found:
-                counts[tag_name] = len(found)
-        return counts
 
-    def _extract_image_alt_coverage(self) -> tuple[int, int]:
-        """Count total `<img>` elements and how many carry a non-empty `alt`.
+        for item in self._extract_structured_data().get(
+            "json-ld",
+            []
+        ):
 
-        Returns:
-            A tuple of `(images_total, images_with_alt)`.
-        """
+            if isinstance(item, dict):
+
+                entities.append(item)
+
+
+        return entities
+
+
+
+    def _extract_schema_types(self):
+
+        types = []
+
+
+        for entity in self._extract_json_ld_entities():
+
+            value = entity.get("@type")
+
+
+            if isinstance(value, str):
+
+                types.append(value)
+
+
+            elif isinstance(value, list):
+
+                types.extend(value)
+
+
+        return list(set(types))
+
+
+
+    # ============================================================
+    # ACCESSIBILITY
+    # ============================================================
+
+
+    def _extract_aria_attributes(self):
+
+        result = {}
+
+
+        for tag in self._soup.find_all(True):
+
+            for attr in tag.attrs:
+
+                if attr.startswith("aria-"):
+
+                    result[attr] = (
+                        result.get(attr, 0)
+                        + 1
+                    )
+
+
+        return result
+
+
+
+    def _extract_labels_count(self):
+
+        return len(
+            self._soup.find_all("label")
+        )
+
+
+
+    # ============================================================
+    # EXISTING METHODS
+    # ============================================================
+
+
+    def _extract_semantic_tags(self):
+
+        return {
+            tag: len(
+                self._soup.find_all(tag)
+            )
+            for tag in _SEMANTIC_TAGS
+            if self._soup.find_all(tag)
+        }
+
+
+
+    def _extract_headings(self):
+
+        return {
+            tag: len(
+                self._soup.find_all(tag)
+            )
+            for tag in _HEADING_TAGS
+            if self._soup.find_all(tag)
+        }
+
+
+
+    def _extract_image_alt_coverage(self):
+
         images = self._soup.find_all("img")
-        images_total = len(images)
-        images_with_alt = 0
-        for tag in images:
-            if not isinstance(tag, Tag):
-                continue
-            alt = tag.get("alt")
+
+        with_alt = 0
+
+        for img in images:
+
+            alt = img.get("alt")
+
             if isinstance(alt, str) and alt.strip():
-                images_with_alt += 1
-        return images_total, images_with_alt
 
-    def _extract_text_length(self) -> int:
-        """Measure the length of the page's visible text content.
+                with_alt += 1
 
-        Script and style contents are excluded since they are not
-        visible text, even though they live inside the document body.
-        Does not mutate the shared `soup` tree, so it is safe to call
-        regardless of extraction order.
 
-        Returns:
-            The character count of the extracted, whitespace-collapsed
-            text content.
-        """
-        _EXCLUDED_PARENTS = ("script", "style")
-        fragments = [
-            str(node).strip()
-            for node in self._soup.find_all(string=True)
-            if node.parent is not None
-            and node.parent.name not in _EXCLUDED_PARENTS
-            and str(node).strip()
-        ]
-        return len(" ".join(fragments))
+        return len(images), with_alt
 
-    def _extract_links(self) -> tuple[list[str], list[str]]:
-        """Extract and classify every `<a href="...">` link on the page.
 
-        Ignores empty links, `javascript:`, `mailto:`, `tel:` links, and
-        bare in-page fragments (`#...`).
 
-        Returns:
-            A tuple of `(internal_links, external_links)`, each a
-            deduplicated list of absolute URLs.
-        """
-        internal_links: list[str] = []
-        external_links: list[str] = []
-        seen: set[str] = set()
+    def _extract_text_length(self):
 
-        base_host = urlparse(self._base_url).netloc.lower() if self._base_url else ""
+        text = self._soup.get_text(
+            " ",
+            strip=True
+        )
 
-        for tag in self._soup.find_all("a"):
-            if not isinstance(tag, Tag):
-                continue
+        return len(text)
+
+
+
+    def _extract_favicon(self):
+
+        tag = self._soup.find(
+            "link",
+            rel=lambda x:
+            x and "icon" in x
+        )
+
+        if isinstance(tag, Tag):
+
             href = tag.get("href")
+
+            if isinstance(href, str):
+                return self._resolve_url(href)
+
+
+        return None
+
+
+
+    def _extract_links(self):
+
+        internal = []
+        external = []
+
+        host = (
+            urlparse(self._base_url).netloc
+            if self._base_url
+            else ""
+        )
+
+
+        for a in self._soup.find_all("a"):
+
+            href = a.get("href")
+
+
             if not isinstance(href, str):
                 continue
-            href = href.strip()
-            if self._should_ignore_link(href):
+
+
+            if href.startswith(
+                _IGNORED_LINK_SCHEMES
+            ):
                 continue
 
-            resolved = self._resolve_url(href)
-            if resolved in seen:
-                continue
-            seen.add(resolved)
 
-            link_host = urlparse(resolved).netloc.lower()
-            if base_host and link_host == base_host:
-                internal_links.append(resolved)
+            url = self._resolve_url(href)
+
+            if urlparse(url).netloc == host:
+
+                internal.append(url)
+
             else:
-                external_links.append(resolved)
 
-        return internal_links, external_links
+                external.append(url)
 
-    # ------------------------------------------------------------------
-    # Shared helpers
-    # ------------------------------------------------------------------
 
-    @staticmethod
-    def _should_ignore_link(href: str) -> bool:
-        """Determine whether a raw href value should be skipped.
+        return list(set(internal)), list(set(external))
 
-        Args:
-            href: The raw, stripped `href` attribute value.
 
-        Returns:
-            True if the link is empty, a fragment-only link, or uses an
-            ignored scheme (`javascript:`, `mailto:`, `tel:`).
-        """
-        if not href or href.startswith("#"):
-            return True
-        return href.lower().startswith(_IGNORED_LINK_SCHEMES)
 
-    def _resolve_url(self, url: str) -> str:
-        """Resolve a possibly relative URL against the base URL.
+    def _extract_javascript_files(self):
 
-        Args:
-            url: The raw URL found in the document.
+        return [
+            self._resolve_url(
+                s["src"]
+            )
+            for s in self._soup.find_all(
+                "script",
+                src=True
+            )
+        ]
 
-        Returns:
-            The absolute URL if a base URL was provided, otherwise the
-            original URL unchanged.
-        """
+
+
+    def _extract_css_files(self):
+
+        return [
+            self._resolve_url(
+                l["href"]
+            )
+            for l in self._soup.find_all(
+                "link",
+                rel="stylesheet",
+                href=True
+            )
+        ]
+
+
+
+    def _resolve_url(self, url):
+
         if self._base_url:
-            return urljoin(self._base_url, url)
+
+            return urljoin(
+                self._base_url,
+                url
+            )
+
         return url

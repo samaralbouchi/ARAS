@@ -31,6 +31,8 @@ from models.assessment import AssessmentResult
 from models.evidence import WebsiteEvidence
 from agents.recommendation_agent import RecommendationAgent
 
+from rag.retriever import KnowledgeBaseRetriever
+
 # Number of analysis agents run per assessment. Kept as a named
 # constant (rather than len(...)) so the intent reads clearly at the
 # call site and the worker pool is sized to exactly match.
@@ -89,7 +91,9 @@ class OrchestratorAgent:
         self._comprehension_agent = comprehension_agent or ComprehensionAgent()
         self._interaction_agent = interaction_agent or InteractionAgent()
         self._security_agent = security_agent or SecurityAgent()
-        self._recommendation_agent = recommendation_agent or RecommendationAgent()
+        self._recommendation_agent = recommendation_agent or RecommendationAgent(
+    retriever=KnowledgeBaseRetriever()
+)
     
     def run(self, input_data: dict[str, Any]) -> AssessmentResult:
         """Run a full assessment given the agent's standard input contract.
@@ -179,7 +183,7 @@ class OrchestratorAgent:
         """
         jobs: list[Callable[[], Any]] = [
             lambda: self._discoverability_agent.evaluate(evidence),
-            lambda: self._comprehension_agent.evaluate(evidence),
+            lambda: self._comprehension_agent.analyze(evidence),
             lambda: self._interaction_agent.evaluate(evidence),
             lambda: self._security_agent.evaluate(evidence),
         ]

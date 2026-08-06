@@ -270,9 +270,14 @@ export function downloadReportPDF(result) {
 if(rec.how_to_apply){
 
 
+  const howText = Array.isArray(rec.how_to_apply)
+    ? rec.how_to_apply.join("\n")
+    : rec.how_to_apply;
+
+
   const howToApply = doc.splitTextToSize(
-    `How to apply:\n${rec.how_to_apply}`,
-    170
+    `How to apply:\n${howText}`,
+     170
   );
 
 

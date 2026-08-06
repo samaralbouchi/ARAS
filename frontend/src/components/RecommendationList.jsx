@@ -13,6 +13,9 @@ function RecommendationList({ recommendations }) {
       <h2>Recommendations</h2>
 
       {recommendations.map((rec, index) => {
+        console.log(rec.how_to_apply);
+        console.log(typeof rec.how_to_apply);
+        
         let color = "#3b82f6";
 
         if (rec.priority === "critical") color = "#ef4444";
@@ -32,67 +35,13 @@ function RecommendationList({ recommendations }) {
             }}
           >
 
-            <h3>{rec.category}</h3>
-
-            <p>
-              <strong>Issue:</strong> {rec.issue}
-            </p>
-
-
-            <p>
-              <strong>Recommendation:</strong> {rec.recommendation}
-            </p>
+            {/* CATEGORY */}
+            <h3>
+              {rec.category}
+            </h3>
 
 
-            {/* HOW TO APPLY */}
-            {rec.how_to_apply && (
-              <div
-                style={{
-                  marginTop: "15px",
-                  padding: "15px",
-                  background: "#f0fdf4",
-                  borderRadius: "8px",
-                  border: "1px solid #bbf7d0",
-                }}
-              >
-                <h4>
-                  How to apply
-                </h4>
-
-                <p>
-                  {rec.how_to_apply}
-                </p>
-              </div>
-            )}
-
-
-            {/* SOURCES */}
-            {rec.sources && rec.sources.length > 0 && (
-              <div
-                style={{
-                  marginTop: "15px",
-                  padding: "15px",
-                  background: "#eff6ff",
-                  borderRadius: "8px",
-                  border: "1px solid #bfdbfe",
-                }}
-              >
-                <h4>
-                  Sources
-                </h4>
-
-                <ul>
-                  {rec.sources.map((source, i) => (
-                    <li key={i}>
-                      {source}
-                    </li>
-                  ))}
-                </ul>
-
-              </div>
-            )}
-
-
+            {/* PRIORITY */}
             <span
               style={{
                 background: color,
@@ -106,40 +55,93 @@ function RecommendationList({ recommendations }) {
             </span>
 
 
-            {/* RAG explanation */}
-            {rec.rag_context && (
+            {/* ISSUE */}
+            <p style={{marginTop:"15px"}}>
+              <strong>Issue:</strong> {rec.issue}
+            </p>
+
+
+            {/* RECOMMENDATION */}
+            <p>
+              <strong>Recommendation:</strong> {rec.recommendation}
+            </p>
+
+
+
+            {/* HOW TO APPLY */}
+            {rec.how_to_apply && (
               <div
                 style={{
-                  marginTop: "20px",
+                  marginTop: "15px",
                   padding: "15px",
-                  background: "#f8fafc",
+                  background: "#f0fdf4",
                   borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #bbf7d0",
                 }}
               >
 
                 <h4>
-                  Why this recommendation?
+                  How to apply
                 </h4>
 
-                <pre
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    fontSize: "13px",
-                    color: "#334155",
-                  }}
-                >
-                  {rec.rag_context}
-                </pre>
+                <ul>
+                  {Array.isArray(rec.how_to_apply)
+                    ? rec.how_to_apply.map((step, i) => (
+                        <li key={i}>
+                          {step}
+                        </li>
+                      ))
+                    : (
+                        <li>
+                          {rec.how_to_apply}
+                        </li>
+                      )
+                  }
+                </ul>
 
               </div>
             )}
 
+
+
+            {/* SOURCES */}
+            {rec.rag_sources && rec.rag_sources.length > 0 && (
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "15px",
+                  background: "#eff6ff",
+                  borderRadius: "8px",
+                  border: "1px solid #bfdbfe",
+                }}
+              >
+
+                <h4>
+                  Sources
+                </h4>
+
+
+                <ul>
+                  {rec.rag_sources.map((source, i) => (
+                    <li key={i}>
+                      <strong>{source.source}</strong>
+                      {" - "}
+                      {source.source_type}
+                    </li>
+                  ))}
+                </ul>
+
+              </div>
+            )}
+
+
           </div>
         );
       })}
+
     </div>
   );
 }
+
 
 export default RecommendationList;

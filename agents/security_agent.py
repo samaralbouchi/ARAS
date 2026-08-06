@@ -45,6 +45,29 @@ _DEFENSIVE_HEADERS = (
 # Header names that indicate an authentication mechanism is in place.
 _AUTH_HEADERS = ("www-authenticate", "x-api-key", "authorization")
 
+# Keywords indicating that the website exposes an authentication flow
+_AUTH_KEYWORDS = (
+    "login",
+    "signin",
+    "sign in",
+    "connexion",
+    "se connecter",
+    "mon compte",
+    "espace client",
+    "account",
+)
+
+# Common URL patterns for authentication pages
+_AUTH_LINK_PATTERNS = (
+    "/login",
+    "/signin",
+    "/connexion",
+    "/account",
+    "/compte",
+    "/auth",
+)
+
+
 # Header names that indicate the site enforces rate limiting.
 _RATE_LIMIT_HEADERS = (
     "x-ratelimit-limit",
@@ -55,7 +78,10 @@ _RATE_LIMIT_HEADERS = (
 
 # Header names that leak implementation detail to would-be attackers
 # (and to agents that might otherwise infer trust from vagueness).
-_INFO_DISCLOSURE_HEADERS = ("server", "x-powered-by")
+_INFO_DISCLOSURE_HEADERS = (
+    "x-powered-by",
+    "server",
+)
 
 
 @dataclass(frozen=True)
@@ -248,30 +274,98 @@ class SecurityAgent:
     def _evaluate_authentication_declared(
         self, evidence: WebsiteEvidence
     ) -> _CriterionOutcome:
-        """Check that an authentication mechanism (OAuth, JWT, API key) is declared.
-
-        Looks for headers that signal an authentication scheme is in
-        place, such as `WWW-Authenticate`, `X-Api-Key`, or
-        `Authorization`.
-
-        Args:
-            evidence: The evidence snapshot to evaluate.
-
-        Returns:
-            The outcome of this criterion.
         """
+        Check whether the website declares an authentication mechanism.
+
+        Authentication evidence can come from:
+        - HTTP authentication headers
+        - Login/account pages present in HTML
+        - Authentication-related internal links
+
+        This allows detecting authentication flows even when the website
+        does not expose API authentication headers.
+        """
+
         headers = self._lower_headers(evidence)
-        present = sorted(name for name in _AUTH_HEADERS if name in headers)
-        passed = bool(present)
+
+        authentication_indicators = []
+
+
+        # -----------------------------------------
+        # 1. HTTP authentication headers
+        # -----------------------------------------
+
+        for header in _AUTH_HEADERS:
+            if header in headers:
+                authentication_indicators.append(
+                    f"header:{header}"
+                )
+
+
+        # -----------------------------------------
+        # 2. Authentication keywords in HTML
+        # -----------------------------------------
+
+        html = (
+            evidence.html or ""
+        ).lower()
+
+        for keyword in _AUTH_KEYWORDS:
+
+            if keyword in html:
+
+                authentication_indicators.append(
+                    f"html:{keyword}"
+                )
+
+                break
+
+
+        # -----------------------------------------
+        # 3. Authentication-related internal links
+        # -----------------------------------------
+
+        for link in evidence.internal_links:
+
+            link_lower = link.lower()
+
+            for pattern in _AUTH_LINK_PATTERNS:
+
+                if pattern in link_lower:
+
+                    authentication_indicators.append(
+                        f"link:{pattern}"
+                    )
+
+                    break
+
+
+        passed = bool(
+            authentication_indicators
+        )
+
 
         return _CriterionOutcome(
+
             passed=passed,
-            details={"auth_headers_present": present},
-            issue="No authentication mechanism (OAuth, JWT, API key) declared",
+
+            details={
+                "authentication_indicators":
+                    authentication_indicators
+            },
+
+            issue=(
+                "No authentication mechanism declared"
+                if not passed
+                else ""
+            ),
+
             recommendation=(
-                "Declare an authentication scheme (e.g. OAuth 2.0, JWT "
-                "Bearer tokens, or an API key via `WWW-Authenticate`) so "
-                "agents know how to authenticate for protected actions."
+                "Expose authentication information such as "
+                "login pages, OAuth, JWT, or API authentication "
+                "documentation."
+                if not passed
+                else ""
             ),
         )
 
@@ -291,6 +385,12 @@ class SecurityAgent:
             The outcome of this criterion.
         """
         headers = self._lower_headers(evidence)
+
+        print("========== SECURITY HEADERS ==========")
+        for key, value in headers.items():
+            print(key, ":", value)
+        print("======================================")
+        
         present = sorted(name for name in _RATE_LIMIT_HEADERS if name in headers)
         passed = bool(present)
 
@@ -312,27 +412,50 @@ class SecurityAgent:
     def _evaluate_minimal_info_disclosure(
         self, evidence: WebsiteEvidence
     ) -> _CriterionOutcome:
-        """Check that the server does not over-share implementation details.
+        """Check that the server does not expose sensitive implementation details."""
 
-        Headers like `Server` or `X-Powered-By` reveal software and
-        versions that make targeted exploitation easier.
-
-        Args:
-            evidence: The evidence snapshot to evaluate.
-
-        Returns:
-            The outcome of this criterion.
-        """
         headers = self._lower_headers(evidence)
-        leaking = sorted(name for name in _INFO_DISCLOSURE_HEADERS if name in headers)
+
+        leaking = []
+
+        # X-Powered-By always reveals backend technology
+        if "x-powered-by" in headers:
+            leaking.append("x-powered-by")
+
+        # Server is only considered a leak if it reveals
+        # a software/version detail
+        if "server" in headers:
+            server_value = str(headers["server"]).lower()
+
+            sensitive_patterns = (
+                "apache/",
+                "nginx/",
+                "iis/",
+                "php/",
+                "node",
+                "express",
+                "tomcat",
+            )
+
+            if any(pattern in server_value for pattern in sensitive_patterns):
+                leaking.append("server")
+
         passed = not leaking
 
         return _CriterionOutcome(
             passed=passed,
-            details={"info_disclosure_headers_present": leaking},
-            issue="Server discloses implementation details via response headers",
+            details={
+                "info_disclosure_headers_present": leaking
+            },
+            issue=(
+                "Server discloses implementation details via response headers"
+                if not passed
+                else ""
+            ),
             recommendation=(
-                "Remove or obfuscate headers like Server and X-Powered-By "
-                "to avoid revealing software and versions to attackers."
+                "Remove or hide headers exposing software versions "
+                "or backend technologies."
+                if not passed
+                else ""
             ),
         )

@@ -16,6 +16,7 @@ function Dashboard() {
     if (!url) {
       alert("Please enter a website URL");
       return;
+      
     }
 
     try {
