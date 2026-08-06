@@ -223,10 +223,6 @@ class EvidenceCollectorAgent:
             base_url=response.final_url
         ).parse()
 
-        print("META DESCRIPTION:", parsed.meta_description)
-        print("TWITTER:", parsed.twitter_cards)
-        print("SCHEMA TYPES:", parsed.schema_org_types)
-        print("ARIA:", parsed.aria_attributes)
 
 
         # -------------------------

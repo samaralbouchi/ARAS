@@ -386,11 +386,6 @@ class SecurityAgent:
         """
         headers = self._lower_headers(evidence)
 
-        print("========== SECURITY HEADERS ==========")
-        for key, value in headers.items():
-            print(key, ":", value)
-        print("======================================")
-        
         present = sorted(name for name in _RATE_LIMIT_HEADERS if name in headers)
         passed = bool(present)
 

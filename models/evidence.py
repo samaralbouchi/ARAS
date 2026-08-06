@@ -65,6 +65,8 @@ class WebsiteEvidence:
 
     title: Optional[str] = None
 
+    language: Optional[str] = None
+
     meta_description: Optional[str] = None
 
     meta_tags: dict[str, str] = field(

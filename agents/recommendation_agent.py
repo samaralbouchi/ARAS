@@ -195,13 +195,7 @@ class RecommendationAgent:
                     rag_sources_used.append(source)
 
 
-        print("\n========== FINAL RECOMMENDATIONS ==========")
         
-        for rec in recommendations:
-            print(rec.issue)
-            print("HOW TO APPLY:")
-            print(rec.how_to_apply)
-            print("-----------------------------------")
 
 
 

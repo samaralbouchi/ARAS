@@ -1,3 +1,5 @@
+
+
 """Discoverability Agent.
 
 This module is the first analysis ("judgment") layer of ARAS. It
@@ -28,6 +30,21 @@ from models.evidence import WebsiteEvidence
 
 _CRITERIA_COUNT = 7
 _CRITERION_WEIGHT = 100.0 / _CRITERIA_COUNT
+
+# Well-known AI/agent crawler user-agent tokens. If robots.txt
+# disallows all of these for "/", the site is technically publishing
+# a robots.txt (old check) but is actively opting out of agentic
+# access to the entire site, which should not read as "discoverable".
+_KNOWN_AI_BOT_TOKENS = (
+    "gptbot",
+    "chatgpt-user",
+    "claudebot",
+    "anthropic-ai",
+    "ccbot",
+    "google-extended",
+    "perplexitybot",
+    "applebot-extended",
+)
 
 
 @dataclass(frozen=True)
@@ -81,36 +98,6 @@ class DiscoverabilityAgent:
         for name, evaluator in criteria:
             self._apply(name, evaluator(evidence), result)
 
-
-
-
-
-        # ================= DEBUG TEMPORAIRE =================
-
-        print("========== DEBUG DISCOVERABILITY ==========")
-
-        print("ROBOTS TXT:", bool(evidence.robots_txt))
-        print("ROBOTS CONTENT:",
-            evidence.robots_txt[:100] if evidence.robots_txt else None)
-
-        print("SITEMAP XML:", bool(evidence.sitemap_xml))
-        print("SITEMAP CONTENT:",
-            evidence.sitemap_xml[:200] if evidence.sitemap_xml else None)
-
-        print("LLMS TXT:", bool(evidence.llms_txt))
-        print("LLMS CONTENT:",
-            evidence.llms_txt[:100] if evidence.llms_txt else None)
-
-        print("API ANALYSIS:", evidence.api_analysis)
-
-        print("INTERNAL LINKS:",
-            len(evidence.internal_links))
-
-        print("==========================================")
-
-
-        
-
         result.score = self._compute_score(result.checks)
         return result
 
@@ -154,14 +141,17 @@ class DiscoverabilityAgent:
     # 1. robots.txt
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _evaluate_robots_txt(evidence: WebsiteEvidence) -> _CriterionOutcome:
-        """Check that `robots.txt` was discovered.
+    @classmethod
+    def _evaluate_robots_txt(cls, evidence: WebsiteEvidence) -> _CriterionOutcome:
+        """Check that `robots.txt` was discovered and does not block AI agents.
 
         `WebsiteEvidence.robots_txt` is only ever populated by the
         Evidence Collector when the `/robots.txt` request succeeded
         with a 200 status code, so its mere presence already implies
-        that condition.
+        that condition. Presence alone is not enough, though: a
+        robots.txt that fully disallows every known AI/agent crawler
+        is not "discoverable" in any meaningful sense, even though the
+        file itself exists.
 
         Args:
             evidence: The evidence snapshot to evaluate.
@@ -170,12 +160,73 @@ class DiscoverabilityAgent:
             The outcome of this criterion.
         """
         found = bool(evidence.robots_txt)
-        return _CriterionOutcome(
-            passed=found,
-            details={"robots_found": found},
-            issue="No robots.txt found",
-            recommendation="Add a robots.txt file at the site root.",
+        blocked_bots = (
+            cls._find_blocked_ai_bots(evidence.robots_txt) if found else []
         )
+        passed = found and not blocked_bots
+
+        if not found:
+            issue = "No robots.txt found"
+            recommendation = "Add a robots.txt file at the site root."
+        elif blocked_bots:
+            issue = f"robots.txt disallows known AI agents: {', '.join(blocked_bots)}"
+            recommendation = (
+                "Remove blanket 'Disallow: /' rules for AI agent user-agents "
+                "(e.g. GPTBot, ClaudeBot, Google-Extended) unless blocking "
+                "them is intentional."
+            )
+        else:
+            issue = ""
+            recommendation = ""
+
+        return _CriterionOutcome(
+            passed=passed,
+            details={"robots_found": found, "robots_blocked_ai_bots": blocked_bots},
+            issue=issue,
+            recommendation=recommendation,
+        )
+
+    @staticmethod
+    def _find_blocked_ai_bots(robots_txt: str) -> list[str]:
+        """Return which known AI bot user-agents are fully disallowed by robots.txt.
+
+        Parses robots.txt just well enough to find `User-agent` blocks
+        for known AI bot tokens that contain a `Disallow: /` (or
+        `Disallow:/`) rule blocking the entire site.
+
+        Args:
+            robots_txt: The raw contents of robots.txt.
+
+        Returns:
+            The list of known AI bot tokens that are fully blocked.
+        """
+        blocked: list[str] = []
+        current_agents: list[str] = []
+
+        for raw_line in robots_txt.splitlines():
+            line = raw_line.split("#", 1)[0].strip()
+            if not line or ":" not in line:
+                continue
+            key, _, value = line.partition(":")
+            key = key.strip().lower()
+            value = value.strip()
+
+            if key == "user-agent":
+                token = value.lower()
+                if token == "*":
+                    current_agents = []
+                elif token in _KNOWN_AI_BOT_TOKENS:
+                    current_agents.append(token)
+                else:
+                    # A non-AI-bot user-agent in the same block: treat
+                    # the preceding AI-bot agents as no longer "current"
+                    # for simplicity (this is a heuristic, not a full
+                    # robots.txt parser).
+                    current_agents = []
+            elif key == "disallow" and value.replace(" ", "") == "/":
+                blocked.extend(agent for agent in current_agents if agent not in blocked)
+
+        return blocked
 
     # ------------------------------------------------------------------
     # 2. sitemap.xml
@@ -358,4 +409,3 @@ class DiscoverabilityAgent:
             issue="No internal navigation links found",
             recommendation="Add internal links so agents can navigate beyond the homepage.",
         )
-
