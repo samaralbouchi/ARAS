@@ -55,6 +55,55 @@ class AssessmentService:
         except Exception:
             return False
 
+    async def get_recommendation_result(self, url: str):
+        """
+        Run just enough of the existing pipeline (Orchestrator +
+        RecommendationAgent) to produce a `RecommendationResult`,
+        without generating the final report.
+
+        This is the "Extension proposée" hand-off point from the
+        architecture diagram: it lets the AutoFix pipeline
+        (`AutoFixOrchestratorAgent`) reuse the exact same
+        recommendations the `/assess` endpoint would show, instead of
+        recomputing them differently.
+
+        Args:
+            url: The website URL to assess.
+
+        Returns:
+            The `RecommendationResult` produced by `RecommendationAgent`.
+
+        Raises:
+            ValueError: If the URL is unreachable
+                (same check as `assess()`).
+        """
+        if not await self.check_url(url):
+            raise ValueError("Site inexistant ou inaccessible")
+
+        assessment_result = self.orchestrator.run({
+            "url": url
+        })
+
+        discoverability = DiscoverabilityResult(
+            **assessment_result.discoverability
+        )
+        comprehension = ComprehensionResult(
+            **assessment_result.comprehension
+        )
+        interaction = InteractionResult(
+            **assessment_result.interaction
+        )
+        security = SecurityResult(
+            **assessment_result.security
+        )
+
+        return self.recommendation_agent.evaluate(
+            discoverability=discoverability,
+            comprehension=comprehension,
+            interaction=interaction,
+            security=security
+        )
+
     async def assess(self, url: str) -> dict:
 
         # 0. Validate URL
