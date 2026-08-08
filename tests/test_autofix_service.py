@@ -18,10 +18,13 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from backend.app.services.autofix_service import AutoFixService
+from models.assessment import AssessmentResult
 from models.autofix_pipeline import AutoFixPipelineResult
+from models.evidence import WebsiteEvidence
 from models.fix import AutoFixResult, ProposedFix
 from models.mode import ModeSelection, OperatingMode
 from models.recommendation import Recommendation, RecommendationResult
+from models.simulation import CategorySimulation, SimulationResult
 from models.validation import FixValidation, ValidationResult, ValidationStatus
 
 
@@ -42,6 +45,18 @@ def _recommendation_result() -> RecommendationResult:
     )
 
 
+def _assessment_result() -> AssessmentResult:
+    return AssessmentResult(
+        url="https://example.com",
+        evidence=WebsiteEvidence(url="https://example.com").to_dict(),
+        discoverability={"score": 50.0},
+        comprehension={"score": 60.0},
+        interaction={"score": 70.0},
+        security={"score": 80.0},
+        overall_score=65.0,
+    )
+
+
 class _FakeAssessmentService:
     """Stands in for AssessmentService: no HTTP, no Ollama."""
 
@@ -52,6 +67,11 @@ class _FakeAssessmentService:
         if self._unreachable:
             raise ValueError("Site inexistant ou inaccessible")
         return _recommendation_result()
+
+    async def get_assessment_and_recommendations(self, url: str):
+        if self._unreachable:
+            raise ValueError("Site inexistant ou inaccessible")
+        return _assessment_result(), _recommendation_result()
 
 
 class _FakeOrchestrator:
@@ -146,11 +166,43 @@ class _FakeOrchestrator:
         return self.execute(recommendation_result)
 
 
+class _FakeSimulationAgent:
+    """Deterministic stand-in for SimulationAgent: records its calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[WebsiteEvidence, AssessmentResult, AutoFixPipelineResult]] = []
+
+    def simulate(
+        self,
+        evidence: WebsiteEvidence,
+        assessment_result: AssessmentResult,
+        pipeline_result: AutoFixPipelineResult,
+    ) -> SimulationResult:
+        self.calls.append((evidence, assessment_result, pipeline_result))
+        return SimulationResult(
+            category_simulations=[
+                CategorySimulation(
+                    category="discoverability",
+                    mode=pipeline_result.mode_selection.mode.value,
+                    score_before=50.0,
+                    score_after=90.0,
+                    delta=40.0,
+                    fixes_applied=pipeline_result.validation_result.approved_fixes,
+                )
+            ],
+            overall_score_before=65.0,
+            overall_score_after=75.0,
+            mode=pipeline_result.mode_selection.mode.value,
+        )
+
+
 class AutoFixServiceTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.simulation_agent = _FakeSimulationAgent()
         self.service = AutoFixService(
             assessment_service=_FakeAssessmentService(),
             orchestrator=_FakeOrchestrator(),
+            simulation_agent=self.simulation_agent,
         )
 
     def test_start_run_returns_run_id_and_pipeline_fields(self) -> None:
@@ -204,6 +256,52 @@ class AutoFixServiceTests(unittest.TestCase):
     def test_retry_rejected_unknown_run_id_raises_key_error(self) -> None:
         with self.assertRaises(KeyError):
             self.service.retry_rejected("does-not-exist")
+
+    def test_simulate_not_ready_raises_value_error(self) -> None:
+        started = _run(self.service.start_run("https://example.com"))
+
+        with self.assertRaises(ValueError):
+            self.service.simulate(started["run_id"])
+
+        self.assertEqual(self.simulation_agent.calls, [])
+
+    def test_simulate_unknown_run_id_raises_key_error(self) -> None:
+        with self.assertRaises(KeyError):
+            self.service.simulate("does-not-exist")
+
+    def test_simulate_after_approval_returns_simulation_result(self) -> None:
+        started = _run(self.service.start_run("https://example.com"))
+        run_id = started["run_id"]
+        self.service.decide(run_id, fix_index=0, approved=True, reviewer="sam")
+
+        result = self.service.simulate(run_id)
+
+        self.assertIn("simulation_result", result)
+        self.assertEqual(result["simulation_result"]["overall_score_after"], 75.0)
+        self.assertEqual(len(self.simulation_agent.calls), 1)
+
+    def test_simulate_result_is_visible_via_get_run(self) -> None:
+        started = _run(self.service.start_run("https://example.com"))
+        run_id = started["run_id"]
+        self.service.decide(run_id, fix_index=0, approved=True, reviewer="sam")
+        self.service.simulate(run_id)
+
+        fetched = self.service.get_run(run_id)
+
+        self.assertIn("simulation_result", fetched)
+
+    def test_deciding_again_invalidates_previous_simulation(self) -> None:
+        started = _run(self.service.start_run("https://example.com"))
+        run_id = started["run_id"]
+        self.service.decide(run_id, fix_index=0, approved=True, reviewer="sam")
+        self.service.simulate(run_id)
+
+        # A further decision (e.g. correcting a mis-click) must
+        # invalidate the now-stale simulation.
+        self.service.decide(run_id, fix_index=0, approved=False, reviewer="sam")
+
+        fetched = self.service.get_run(run_id)
+        self.assertNotIn("simulation_result", fetched)
 
 
 if __name__ == "__main__":

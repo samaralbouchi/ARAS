@@ -55,23 +55,18 @@ class AssessmentService:
         except Exception:
             return False
 
-    async def get_recommendation_result(self, url: str):
+    async def _run_assessment_and_recommendations(self, url: str):
         """
-        Run just enough of the existing pipeline (Orchestrator +
-        RecommendationAgent) to produce a `RecommendationResult`,
-        without generating the final report.
-
-        This is the "Extension proposée" hand-off point from the
-        architecture diagram: it lets the AutoFix pipeline
-        (`AutoFixOrchestratorAgent`) reuse the exact same
-        recommendations the `/assess` endpoint would show, instead of
-        recomputing them differently.
+        Shared implementation behind `get_recommendation_result` and
+        `get_assessment_and_recommendations`: run the Orchestrator
+        once, then the RecommendationAgent, without generating the
+        final report.
 
         Args:
             url: The website URL to assess.
 
         Returns:
-            The `RecommendationResult` produced by `RecommendationAgent`.
+            A `(assessment_result, recommendation_result)` tuple.
 
         Raises:
             ValueError: If the URL is unreachable
@@ -97,12 +92,61 @@ class AssessmentService:
             **assessment_result.security
         )
 
-        return self.recommendation_agent.evaluate(
+        recommendation_result = self.recommendation_agent.evaluate(
             discoverability=discoverability,
             comprehension=comprehension,
             interaction=interaction,
             security=security
         )
+
+        return assessment_result, recommendation_result
+
+    async def get_recommendation_result(self, url: str):
+        """
+        Run just enough of the existing pipeline (Orchestrator +
+        RecommendationAgent) to produce a `RecommendationResult`,
+        without generating the final report.
+
+        This is the "Extension proposée" hand-off point from the
+        architecture diagram: it lets the AutoFix pipeline
+        (`AutoFixOrchestratorAgent`) reuse the exact same
+        recommendations the `/assess` endpoint would show, instead of
+        recomputing them differently.
+
+        Args:
+            url: The website URL to assess.
+
+        Returns:
+            The `RecommendationResult` produced by `RecommendationAgent`.
+
+        Raises:
+            ValueError: If the URL is unreachable
+                (same check as `assess()`).
+        """
+        _, recommendation_result = await self._run_assessment_and_recommendations(url)
+        return recommendation_result
+
+    async def get_assessment_and_recommendations(self, url: str):
+        """
+        Same as `get_recommendation_result`, but also returns the full
+        `AssessmentResult` (scores + evidence) it was computed from.
+
+        This is what the Simulation agent needs: `assessment_result`
+        for the per-category `score_before`, and
+        `assessment_result.evidence` to reconstruct the
+        `WebsiteEvidence` snapshot it patches and re-scores.
+
+        Args:
+            url: The website URL to assess.
+
+        Returns:
+            A `(assessment_result, recommendation_result)` tuple.
+
+        Raises:
+            ValueError: If the URL is unreachable
+                (same check as `assess()`).
+        """
+        return await self._run_assessment_and_recommendations(url)
 
     async def assess(self, url: str) -> dict:
 

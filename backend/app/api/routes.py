@@ -74,3 +74,14 @@ async def autofix_retry_rejected(run_id: str):
         return autofix_service.retry_rejected(run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/autofix/{run_id}/simulate")
+async def autofix_simulate(run_id: str):
+    """Compute real before/after scores for a run's approved fixes."""
+    try:
+        return autofix_service.simulate(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
